@@ -1,36 +1,44 @@
 from fastapi import FastAPI
 
-# Create FastAPI application. App represents backend server
+from parsing.pdf_parser import extract_text_from_pdf
+from chunking.semanticchunker import SemanticChunker
+from embedding.faiss_embedder import FAISSStore
+from embedding.retrieval import QueryEngine
+
 app = FastAPI()
 
-# Establish endpoint as / that returns JSON message
+
+# Build pipeline on startup
+
+text = extract_text_from_pdf("app/data/math_syllabus.pdf")
+
+chunker = SemanticChunker(similarity_threshold=0.60)
+chunks = chunker.chunk_document(text)
+
+print("Chunks created:", len(chunks))
+
+
+
+# Vector store
+store = FAISSStore()
+store.add_chunks(chunks)
+
+# Query engine uses the store
+query_engine = QueryEngine(store)
+
+
+# Api endpoints
+
 @app.get("/")
 def root():
     return {"message": "Semantic navigation API running"}
 
-# Import text extraction function to pull text from pdf
-from parsing.pdf_parser import extract_text_from_pdf
-text = extract_text_from_pdf("app/data/math_syllabus.pdf")
 
-# Test fixed chunking 
-from chunking.fixedchunker import fixed_chunk_text
-chunks = fixed_chunk_text(text, chunk_size=250, overlap=0)
-print("Number of chunks:", len(chunks))
-print("First chunk: ", chunks[0])
+@app.get("/search")
+def search(q: str):
+    results = query_engine.query(q, k=3)
 
-
-# Test semantic chunking
-from chunking.semanticchunker import SemanticChunker
-
-# Create chunker instance
-chunker = SemanticChunker(
-    similarity_threshold=0.60
-)
-
-# Generate semantic chunks
-chunks = chunker.chunk_document(text)
-
-# Test output
-print("Number of semantic chunks:", len(chunks))
-print("\nFirst semantic chunk:\n")
-print(chunks[0])
+    return {
+        "query": q,
+        "results": results
+    }
