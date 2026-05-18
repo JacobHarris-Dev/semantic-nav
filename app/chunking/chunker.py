@@ -1,3 +1,9 @@
+import spacy
+import numpy as np
+
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+
 def fixed_chunk_text(text: str, chunk_size: int, overlap: int = 0):
     """
     Splits text into fixed-size character chunks.
@@ -20,4 +26,9 @@ def fixed_chunk_text(text: str, chunk_size: int, overlap: int = 0):
 
     return chunks
 
+def semantic_chunk_text(text: str):
+    print("hello")
+
+def split_sentences(text:str):
+    
     
