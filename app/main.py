@@ -12,3 +12,8 @@ def root():
 from parsing.pdf_parser import extract_text_from_pdf
 text = extract_text_from_pdf("app/data/math_syllabus.pdf")
 print(text)
+
+from chunking.chunker import fixed_chunk_text
+chunks = fixed_chunk_text(text, chunk_size=250, overlap=0)
+print("Number of chunks: ", len(chunks))
+print("First chunk: ", chunks[0])
