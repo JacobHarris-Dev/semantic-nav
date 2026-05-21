@@ -6,8 +6,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 class SemanticChunker:
+    # initalize chunking object
     def __init__(
         self,
+
+        # define model, threshold (how similaer do sentences need to be), and min chunk size
         model_name="all-MiniLM-L6-v2",
         similarity_threshold=0.65,
         min_chunk_sentences=2
@@ -70,11 +73,12 @@ class SemanticChunker:
             # If semantic shift detected
             if sim < self.similarity_threshold:
 
-                # Avoid tiny chunks
+                # Avoid tiny chunks with min sentence value
                 if len(current_chunk) >= self.min_chunk_sentences:
                     chunks.append(" ".join(current_chunk))
                     current_chunk = []
-
+            
+            # appead sentence to current chunk
             current_chunk.append(sentences[i + 1])
 
         # Add remaining chunk
@@ -87,15 +91,21 @@ class SemanticChunker:
         """
         Full pipeline.
         """
+
+        # Split text into individual sentences 
         sentences = self.split_sentences(text)
 
-        if len(sentences) <= 1:
+        # edge case: document only has 1 or 0 sentences 
+        if len(sentences) <= 1: 
             return sentences
 
+        # generate embeddings from sentences
         embeddings = self.embed_sentences(sentences)
 
+        # compare similarities of embedded sentences 
         similarities = self.compute_similarities(embeddings)
 
+        # create chunks based on similarity 
         chunks = self.create_chunks(
             sentences,
             similarities
