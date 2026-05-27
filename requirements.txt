@@ -3,6 +3,8 @@ uvicorn
 faiss-cpu
 sentence-transformers
 numpy
+pandas
 pydantic
+python-docx
 python-multipart
 pymupdf

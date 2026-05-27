@@ -25,16 +25,29 @@
 ### Search
 ### GET /search?q=your+query
 
-### Example:
+### Examples:
 
+#### Query the default PDF document
 #### curl "http://127.0.0.1:8000/search?q=what%20is%20calculus"
+
+#### Switch to a different document at runtime
+#### curl "http://127.0.0.1:8000/search?q=who%20is%20in%20the%20csv&document=csv_example.csv"
+
+#### Load a markdown document explicitly
+#### curl "http://127.0.0.1:8000/load?document=md_example.md"
 
 ### Response:
 
 #### {
 ####  "query": "what is calculus",
-#### "results": [...]
+####  "results": [...],
+####  "document": "pdf_example.pdf",
+####  "document_type": "pdf"
 #### }
+
+### Supported document types
+#### pdf, txt, md, csv, and docx
+
 ### Run Locally
 #### uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
