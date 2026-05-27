@@ -7,16 +7,20 @@ from app.parsing.md_parser import read_markdown
 from app.parsing.pdf_parser import extract_text_from_pdf
 from app.parsing.txt_parser import read_txt
 from app.chunking.semanticchunker import SemanticChunker
+from app.chunking.fixedchunker import FixedChunker
 from app.embedding.faiss_embedder import FAISSEmbedder
 from app.embedding.retrieval import Retrieval
+import time
 
 app = FastAPI()
 
 DEFAULT_DOCUMENT = "pdf_example.pdf"
 DEFAULT_DOCUMENT_TYPE = "pdf"
+DEFAULT_CHUNKER = "semantic"
 CURRENT_DOCUMENT = {
     "document": DEFAULT_DOCUMENT,
     "document_type": DEFAULT_DOCUMENT_TYPE,
+    "chunker": DEFAULT_CHUNKER,
 }
 query_engine = None
 
@@ -78,21 +82,58 @@ def extract_document_text(document_name: str, document_type: Optional[str] = Non
     raise ValueError(f"Unsupported document type: {selected_type}")
 
 
-def load_pipeline(document_name: str, document_type: Optional[str] = None):
+def load_pipeline(document_name: str, document_type: Optional[str] = None, chunker_type: str = "semantic"):
+    """Load document, parse, chunk, embed, and build retrieval index.
+
+    Prints timing information for parsing, chunking, embedding, and total time.
+    """
     global query_engine
 
+    pipeline_start = time.perf_counter()
+
     selected_type = document_type or infer_document_type(resolve_document_path(document_name))
+
+    # Parsing
+    parse_start = time.perf_counter()
     text = extract_document_text(document_name, selected_type)
+    parse_end = time.perf_counter()
 
-    chunker = SemanticChunker(similarity_threshold=0.60)
+    # Select chunker based on type
+    if chunker_type == "fixed":
+        chunker = FixedChunker(chunk_size=500, overlap=0)
+    elif chunker_type == "semantic":
+        chunker = SemanticChunker(similarity_threshold=0.60)
+    else:
+        raise ValueError(f"Unsupported chunker type: {chunker_type}. Use 'fixed' or 'semantic'.")
+
+    # Chunking
+    chunk_start = time.perf_counter()
     chunks = chunker.chunk_document(text)
+    chunk_end = time.perf_counter()
 
+    # Embedding
+    embed_start = time.perf_counter()
     store = FAISSEmbedder()
     store.add_chunks(chunks)
+    embed_end = time.perf_counter()
 
     query_engine = Retrieval(store)
     CURRENT_DOCUMENT["document"] = document_name
     CURRENT_DOCUMENT["document_type"] = selected_type
+    CURRENT_DOCUMENT["chunker"] = chunker_type
+
+    pipeline_end = time.perf_counter()
+
+    parse_time = parse_end - parse_start
+    chunk_time = chunk_end - chunk_start
+    embed_time = embed_end - embed_start
+    total_time = pipeline_end - pipeline_start
+
+    print(f"[Pipeline timings] document={document_name} chunker={chunker_type}")
+    print(f"  parsing: {parse_time:.3f}s")
+    print(f"  chunking: {chunk_time:.3f}s")
+    print(f"  embedding: {embed_time:.3f}s")
+    print(f"  total: {total_time:.3f}s")
 
 
 @app.on_event("startup")
@@ -108,9 +149,9 @@ def root():
 
 
 @app.get("/load")
-def load_document(document: str = DEFAULT_DOCUMENT, document_type: Optional[str] = None):
+def load_document(document: str = DEFAULT_DOCUMENT, document_type: Optional[str] = None, chunker_type: str = "semantic"):
     try:
-        load_pipeline(document, document_type)
+        load_pipeline(document, document_type, chunker_type)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -120,6 +161,7 @@ def load_document(document: str = DEFAULT_DOCUMENT, document_type: Optional[str]
         "status": "loaded",
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
+        "chunker": CURRENT_DOCUMENT["chunker"],
     }
 
 
@@ -128,16 +170,23 @@ def status():
     return {
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
+        "chunker": CURRENT_DOCUMENT["chunker"],
     }
 
 
 @app.get("/search")
-def search(q: str, document: Optional[str] = None, document_type: Optional[str] = None, k: int = 3):
+def search(q: str, document: Optional[str] = None, document_type: Optional[str] = None, chunker_type: Optional[str] = None, k: int = 3):
     try:
+        # Use specified chunker or fall back to current one
+        selected_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]
+        
         if document is not None or document_type is not None:
-            load_pipeline(document or CURRENT_DOCUMENT["document"], document_type)
+            load_pipeline(document or CURRENT_DOCUMENT["document"], document_type, selected_chunker)
         elif query_engine is None:
-            load_pipeline(DEFAULT_DOCUMENT, DEFAULT_DOCUMENT_TYPE)
+            load_pipeline(DEFAULT_DOCUMENT, DEFAULT_DOCUMENT_TYPE, selected_chunker)
+        elif chunker_type is not None:
+            # If chunker type changed, reload pipeline with same document
+            load_pipeline(CURRENT_DOCUMENT["document"], CURRENT_DOCUMENT["document_type"], selected_chunker)
 
         results = query_engine.query(q, k=k)
     except FileNotFoundError as exc:
@@ -150,4 +199,5 @@ def search(q: str, document: Optional[str] = None, document_type: Optional[str] 
         "results": results,
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
+        "chunker": CURRENT_DOCUMENT["chunker"],
     }
