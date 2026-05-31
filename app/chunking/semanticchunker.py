@@ -26,11 +26,18 @@ class SemanticChunker:
 
     def split_sentences(self, text):
         """
-        Split document into sentences using spaCy.
+        Split document into sentences using spaCy and preserve character offsets.
         """
 
         doc = self.nlp(text)
-        return [sent.text.strip() for sent in doc.sents]
+        return [
+            {
+                "text": text[sent.start_char:sent.end_char],
+                "start": sent.start_char,
+                "end": sent.end_char,
+            }
+            for sent in doc.sents
+        ]
     
     def embed_sentences(self, sentences):
         """
@@ -61,7 +68,7 @@ class SemanticChunker:
 
         return similarities
 
-    def create_chunks(self, sentences, similarities):
+    def create_chunks(self, sentences, similarities, full_text):
         """
         Build chunks based on semantic shifts.
         """
@@ -75,15 +82,27 @@ class SemanticChunker:
 
                 # Avoid tiny chunks with min sentence value
                 if len(current_chunk) >= self.min_chunk_sentences:
-                    chunks.append(" ".join(current_chunk))
+                    start = current_chunk[0]["start"]
+                    end = current_chunk[-1]["end"]
+                    chunks.append({
+                        "text": full_text[start:end],
+                        "start": start,
+                        "end": end,
+                    })
                     current_chunk = []
             
-            # appead sentence to current chunk
+            # append sentence to current chunk
             current_chunk.append(sentences[i + 1])
 
         # Add remaining chunk
         if current_chunk:
-            chunks.append(" ".join(current_chunk))
+            start = current_chunk[0]["start"]
+            end = current_chunk[-1]["end"]
+            chunks.append({
+                "text": full_text[start:end],
+                "start": start,
+                "end": end,
+            })
 
         return chunks
 
@@ -96,11 +115,13 @@ class SemanticChunker:
         sentences = self.split_sentences(text)
 
         # edge case: document only has 1 or 0 sentences 
-        if len(sentences) <= 1: 
-            return sentences
+        if len(sentences) <= 1:
+            if len(sentences) == 1:
+                return [{"text": sentences[0]["text"], "start": sentences[0]["start"], "end": sentences[0]["end"]}]
+            return []
 
         # generate embeddings from sentences
-        embeddings = self.embed_sentences(sentences)
+        embeddings = self.embed_sentences([sentence["text"] for sentence in sentences])
 
         # compare similarities of embedded sentences 
         similarities = self.compute_similarities(embeddings)
@@ -108,7 +129,8 @@ class SemanticChunker:
         # create chunks based on similarity 
         chunks = self.create_chunks(
             sentences,
-            similarities
+            similarities,
+            text,
         )
 
         return chunks

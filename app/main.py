@@ -10,6 +10,7 @@ from app.chunking.semanticchunker import SemanticChunker
 from app.chunking.fixedchunker import FixedChunker
 from app.embedding.faiss_embedder import FAISSEmbedder
 from app.embedding.retrieval import Retrieval
+from app.processing.query_normalizer import normalize_query
 import time
 
 app = FastAPI()
@@ -188,7 +189,9 @@ def search(q: str, document: Optional[str] = None, document_type: Optional[str] 
             # If chunker type changed, reload pipeline with same document
             load_pipeline(CURRENT_DOCUMENT["document"], CURRENT_DOCUMENT["document_type"], selected_chunker)
 
-        results = query_engine.query(q, k=k)
+        # Normalize query to remove boilerplate/intent phrases before embedding
+        cleaned_q = normalize_query(q)
+        results = query_engine.query(cleaned_q, k=k)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -196,6 +199,7 @@ def search(q: str, document: Optional[str] = None, document_type: Optional[str] 
 
     return {
         "query": q,
+        "cleaned_query": cleaned_q,
         "results": results,
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],

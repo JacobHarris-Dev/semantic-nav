@@ -15,11 +15,13 @@ class FAISSEmbedder:
 
     def add_chunks(self, chunks):
         """
-        Convert chunks from array to embeddings and store in FAISS
+        Convert chunks from array or chunk objects to embeddings and store in FAISS
         """
 
+        texts = [chunk["text"] if isinstance(chunk, dict) else chunk for chunk in chunks]
+
         # 1. Generate embeddings
-        embeddings = self.model.encode(chunks, convert_to_numpy=True)
+        embeddings = self.model.encode(texts, convert_to_numpy=True)
 
         # 2. Ensure correct type
         embeddings = np.array(embeddings).astype("float32")
@@ -27,7 +29,7 @@ class FAISSEmbedder:
         # 3. Add to FAISS index
         self.index.add(embeddings)
 
-        # 4. Store original text separately
+        # 4. Store original chunks separately
         self.chunks.extend(chunks)
 
   

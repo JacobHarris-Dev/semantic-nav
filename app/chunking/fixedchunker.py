@@ -14,8 +14,12 @@ def fixed_chunk_text(text: str, chunk_size: int, overlap: int = 0):
     start = 0
 
     while start < len(text):
-        end = start + chunk_size
-        chunks.append(text[start:end])
+        end = min(start + chunk_size, len(text))
+        chunks.append({
+            "text": text[start:end],
+            "start": start,
+            "end": end,
+        })
         start += chunk_size - overlap
 
     return chunks
