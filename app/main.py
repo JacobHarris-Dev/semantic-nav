@@ -3,6 +3,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 
+from app.config import MODE, OFFLINE, MODEL_CACHE_DIR, MODEL_NAME, ALLOW_DOWNLOAD
 from app.parsing.md_parser import read_markdown
 from app.parsing.pdf_parser import extract_text_from_pdf
 from app.parsing.txt_parser import read_txt
@@ -114,7 +115,11 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
 
     # Embedding
     embed_start = time.perf_counter()
-    store = FAISSEmbedder()
+    store = FAISSEmbedder(
+        model_name=MODEL_NAME,
+        cache_dir=MODEL_CACHE_DIR,
+        allow_download=not OFFLINE or ALLOW_DOWNLOAD,
+    )
     store.add_chunks(chunks)
     embed_end = time.perf_counter()
 
@@ -139,7 +144,7 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
 
 @app.on_event("startup")
 async def startup_event():
-    print("Initializing semantic pipeline...")
+    print(f"Initializing semantic pipeline in {MODE} mode...")
     load_pipeline(DEFAULT_DOCUMENT, DEFAULT_DOCUMENT_TYPE)
     print("Pipeline ready.")
 
@@ -163,6 +168,7 @@ def load_document(document: str = DEFAULT_DOCUMENT, document_type: Optional[str]
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
         "chunker": CURRENT_DOCUMENT["chunker"],
+        "mode": MODE,
     }
 
 
@@ -172,6 +178,7 @@ def status():
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
         "chunker": CURRENT_DOCUMENT["chunker"],
+        "mode": MODE,
     }
 
 

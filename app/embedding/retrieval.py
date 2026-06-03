@@ -1,11 +1,10 @@
-from sentence_transformers import SentenceTransformer
 import numpy as np
 
 
 class Retrieval:
     def __init__(self, faiss_embedder):
         self.store = faiss_embedder
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.model = self.store.model
 
     def query(self, question: str, k: int = 3):
         """
@@ -13,7 +12,7 @@ class Retrieval:
         """
 
         # 1. Embed query
-        query_vector = self.model.encode([question], convert_to_numpy=True)
+        query_vector = self.model.encode([question], convert_to_numpy=True, show_progress_bar=False)
         query_vector = np.array(query_vector).astype("float32")
 
         # 2. Search FAISS index
