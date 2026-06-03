@@ -20,10 +20,11 @@ def normalize_query(text: str) -> str:
     # to avoid breaking multi-word matches (e.g., "where they talk about" before "where")
     patterns: List[str] = [
         # Longest, most-specific phrases first
-        r"where they talk about",
+        r"where they (?:talk about|discuss|mention)",
         r"where they mention",
         r"where can i find",
         r"where in the document",
+        r"of the document",
         r"in the document",
         r"in this document",
         r"in this section",
