@@ -182,8 +182,30 @@ def status():
     }
 
 
+def normalize_confidence_threshold(value: float) -> float:
+    """Normalize a user-provided confidence threshold.
+
+    Accept both decimal values (0.0-1.0) and percent-style values (1-100).
+    """
+    if value > 1.0:
+        value /= 100.0
+
+    if value < 0.0 or value > 1.0:
+        raise ValueError("confidence_threshold must be between 0 and 100, or 0.0 and 1.0")
+
+    return value
+
+
 @app.get("/search")
-def search(q: str, document: Optional[str] = None, document_type: Optional[str] = None, chunker_type: Optional[str] = None, k: int = 3):
+def search(
+    q: str,
+    document: Optional[str] = None,
+    document_type: Optional[str] = None,
+    chunker_type: Optional[str] = None,
+    k: int = 3,
+    confidence_threshold: float = 0.0,
+    max_results: Optional[int] = None,
+):
     try:
         # Use specified chunker or fall back to current one
         selected_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]
@@ -198,7 +220,13 @@ def search(q: str, document: Optional[str] = None, document_type: Optional[str] 
 
         # Normalize query to remove boilerplate/intent phrases before embedding
         cleaned_q = normalize_query(q)
-        results = query_engine.query(cleaned_q, k=k)
+        confidence_threshold = normalize_confidence_threshold(confidence_threshold)
+        results = query_engine.query(
+            cleaned_q,
+            k=k,
+            confidence_threshold=confidence_threshold,
+            max_results=max_results,
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -207,6 +235,8 @@ def search(q: str, document: Optional[str] = None, document_type: Optional[str] 
     return {
         "query": q,
         "cleaned_query": cleaned_q,
+        "confidence_threshold": confidence_threshold,
+        "max_results": max_results,
         "results": results,
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
