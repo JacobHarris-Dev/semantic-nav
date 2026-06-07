@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 
-from app.config import MODE, OFFLINE, MODEL_CACHE_DIR, MODEL_NAME, ALLOW_DOWNLOAD
+from app.config import MODE, OFFLINE, ONLINE, MODEL_CACHE_DIR, MODEL_NAME, ALLOW_DOWNLOAD
 from app.parsing.md_parser import read_markdown
 from app.parsing.pdf_parser import extract_text_from_pdf
 from app.parsing.txt_parser import read_txt
@@ -12,6 +12,8 @@ from app.chunking.fixedchunker import FixedChunker
 from app.embedding.faiss_embedder import FAISSEmbedder
 from app.embedding.retrieval import Retrieval
 from app.processing.query_normalizer import normalize_query
+from app.processing.query_rewriter import rewrite_query
+from app.processing.result_reranker import rerank_results
 import time
 
 app = FastAPI()
@@ -218,8 +220,14 @@ def search(
             # If chunker type changed, reload pipeline with same document
             load_pipeline(CURRENT_DOCUMENT["document"], CURRENT_DOCUMENT["document_type"], selected_chunker)
 
-        # Normalize query to remove boilerplate/intent phrases before embedding
-        cleaned_q = normalize_query(q)
+        if ONLINE:
+            rewritten_query = rewrite_query(q)
+            # In online mode, let the model handle all query cleaning
+            cleaned_q = rewritten_query
+        else:
+            rewritten_query = q
+            # In offline mode, normalize query to remove boilerplate/intent phrases before embedding
+            cleaned_q = normalize_query(rewritten_query)
         confidence_threshold = normalize_confidence_threshold(confidence_threshold)
         results = query_engine.query(
             cleaned_q,
@@ -227,13 +235,20 @@ def search(
             confidence_threshold=confidence_threshold,
             max_results=max_results,
         )
+
+        # Re-rank results using Groq in online mode
+        if ONLINE:
+            results = rerank_results(q, results)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return {
         "query": q,
+        "rewritten_query": rewritten_query,
         "cleaned_query": cleaned_q,
         "confidence_threshold": confidence_threshold,
         "max_results": max_results,
