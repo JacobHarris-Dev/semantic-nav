@@ -2,6 +2,7 @@ import os
 from typing import List, Dict, Any
 
 from app.config import ONLINE
+from app.processing.metrics import estimate_tokens
 
 
 def rerank_results(query: str, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -48,6 +49,8 @@ def rerank_results(query: str, results: List[Dict[str, Any]]) -> List[Dict[str, 
         f"Results to rank:\n{results_text}"
     )
 
+    prompt_tokens = estimate_tokens(prompt)
+
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
@@ -55,6 +58,9 @@ def rerank_results(query: str, results: List[Dict[str, Any]]) -> List[Dict[str, 
     )
 
     ranking_text = response.choices[0].message.content.strip()
+    response_tokens = estimate_tokens(ranking_text)
+
+    print(f"[Groq metrics] rerank prompt_tokens={prompt_tokens} response_tokens={response_tokens}")
 
     # Parse the ranking
     try:

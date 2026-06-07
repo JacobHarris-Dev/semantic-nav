@@ -8,4 +8,5 @@ pydantic
 python-docx
 python-multipart
 pymupdf
+psutil
 groq

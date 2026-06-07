@@ -14,6 +14,12 @@ from app.embedding.retrieval import Retrieval
 from app.processing.query_normalizer import normalize_query
 from app.processing.query_rewriter import rewrite_query
 from app.processing.result_reranker import rerank_results
+from app.processing.metrics import (
+    snapshot,
+    estimate_tokens,
+    print_stage_metrics,
+    print_total_metrics,
+)
 import time
 
 app = FastAPI()
@@ -111,11 +117,20 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
         raise ValueError(f"Unsupported chunker type: {chunker_type}. Use 'fixed' or 'semantic'.")
 
     # Chunking
+    chunk_before = snapshot()
     chunk_start = time.perf_counter()
     chunks = chunker.chunk_document(text)
     chunk_end = time.perf_counter()
+    chunk_after = snapshot()
+    print_stage_metrics(
+        "chunking",
+        chunk_before,
+        chunk_after,
+        {"stage_tokens": estimate_tokens(text[:1000])},
+    )
 
     # Embedding
+    embed_before = snapshot()
     embed_start = time.perf_counter()
     store = FAISSEmbedder(
         model_name=MODEL_NAME,
@@ -124,6 +139,13 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
     )
     store.add_chunks(chunks)
     embed_end = time.perf_counter()
+    embed_after = snapshot()
+    print_stage_metrics(
+        "embedding",
+        embed_before,
+        embed_after,
+        {"stage_tokens": estimate_tokens(' '.join(chunks[:5]))},
+    )
 
     query_engine = Retrieval(store)
     CURRENT_DOCUMENT["document"] = document_name
@@ -220,25 +242,58 @@ def search(
             # If chunker type changed, reload pipeline with same document
             load_pipeline(CURRENT_DOCUMENT["document"], CURRENT_DOCUMENT["document_type"], selected_chunker)
 
+        search_before = snapshot()
+
         if ONLINE:
+            rewrite_before = snapshot()
             rewritten_query = rewrite_query(q)
+            rewrite_after = snapshot()
+            print_stage_metrics(
+                "query rewrite",
+                rewrite_before,
+                rewrite_after,
+                {
+                    "stage_tokens": estimate_tokens(rewritten_query),
+                },
+            )
             # In online mode, let the model handle all query cleaning
             cleaned_q = rewritten_query
         else:
             rewritten_query = q
             # In offline mode, normalize query to remove boilerplate/intent phrases before embedding
             cleaned_q = normalize_query(rewritten_query)
+
         confidence_threshold = normalize_confidence_threshold(confidence_threshold)
+        query_before = snapshot()
         results = query_engine.query(
             cleaned_q,
             k=k,
             confidence_threshold=confidence_threshold,
             max_results=max_results,
         )
+        query_after = snapshot()
+        print_stage_metrics(
+            "FAISS retrieval",
+            query_before,
+            query_after,
+            {
+                "embedding_tokens": estimate_tokens(cleaned_q),
+            },
+        )
 
         # Re-rank results using Groq in online mode
         if ONLINE:
+            rerank_before = snapshot()
             results = rerank_results(q, results)
+            rerank_after = snapshot()
+            print_stage_metrics(
+                "result re-ranking",
+                rerank_before,
+                rerank_after,
+            )
+
+        search_after = snapshot()
+        print_total_metrics(search_before, search_after)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

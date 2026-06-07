@@ -2,6 +2,7 @@ import os
 from typing import Any
 
 from app.config import ONLINE
+from app.processing.metrics import estimate_tokens
 
 
 def rewrite_query(raw_query: str) -> str:
@@ -36,6 +37,8 @@ def rewrite_query(raw_query: str) -> str:
         f"User query: {raw_query}"
     )
 
+    prompt_tokens = estimate_tokens(prompt)
+
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
@@ -43,6 +46,9 @@ def rewrite_query(raw_query: str) -> str:
     )
 
     rewritten = response.choices[0].message.content.strip()
+    response_tokens = estimate_tokens(rewritten)
+
+    print(f"[Groq metrics] query rewrite prompt_tokens={prompt_tokens} response_tokens={response_tokens}")
 
     if not rewritten or not rewritten.strip():
         raise RuntimeError("The query rewriter returned an empty response.")
