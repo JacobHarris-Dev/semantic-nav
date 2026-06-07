@@ -140,11 +140,12 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
     store.add_chunks(chunks)
     embed_end = time.perf_counter()
     embed_after = snapshot()
+    chunk_texts = [chunk.get("text", str(chunk)) if isinstance(chunk, dict) else chunk for chunk in chunks[:5]]
     print_stage_metrics(
         "embedding",
         embed_before,
         embed_after,
-        {"stage_tokens": estimate_tokens(' '.join(chunks[:5]))},
+        {"stage_tokens": estimate_tokens(' '.join(chunk_texts))},
     )
 
     query_engine = Retrieval(store)
