@@ -1,6 +1,11 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_PROJECT_ROOT / ".env")
+
 MODE = os.environ.get("SN_MODE", "offline").strip().lower()
 MODEL_NAME = os.environ.get("SN_MODEL_NAME", "all-MiniLM-L6-v2").strip()
 MODEL_CACHE_DIR = os.environ.get("SN_MODEL_CACHE_DIR", str(Path.cwd() / "models")).strip()
