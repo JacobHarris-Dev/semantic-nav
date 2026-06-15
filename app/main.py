@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import FastAPI, HTTPException
 
@@ -33,6 +33,33 @@ CURRENT_DOCUMENT = {
     "chunker": DEFAULT_CHUNKER,
 }
 query_engine = None
+PIPELINE_CACHE = {}
+
+
+def pipeline_cache_key(resolved_path: str, chunker_type: str) -> Tuple[str, str]:
+    return (resolved_path, chunker_type)
+
+
+def pipeline_needs_switch(
+    target_document: str,
+    target_chunker: str,
+    *,
+    has_engine: bool,
+    current_document: str,
+    current_chunker: str,
+) -> bool:
+    if not has_engine:
+        return True
+
+    target_path = resolve_document_path(target_document)
+    current_path = resolve_document_path(current_document)
+    if target_path != current_path:
+        return True
+
+    if target_chunker != current_chunker:
+        return True
+
+    return False
 
 
 def infer_document_type(document_path: str) -> str:
@@ -95,13 +122,27 @@ def extract_document_text(document_name: str, document_type: Optional[str] = Non
 def load_pipeline(document_name: str, document_type: Optional[str] = None, chunker_type: str = "semantic"):
     """Load document, parse, chunk, embed, and build retrieval index.
 
+    Reuses cached pipeline state when the same resolved document and chunker
+    were processed earlier in this server session.
+
     Prints timing information for parsing, chunking, embedding, and total time.
     """
     global query_engine
 
-    pipeline_start = time.perf_counter()
+    resolved_path = resolve_document_path(document_name)
+    selected_type = document_type or infer_document_type(resolved_path)
+    cache_key = pipeline_cache_key(resolved_path, chunker_type)
 
-    selected_type = document_type or infer_document_type(resolve_document_path(document_name))
+    cached_engine = PIPELINE_CACHE.get(cache_key)
+    if cached_engine is not None:
+        query_engine = cached_engine
+        CURRENT_DOCUMENT["document"] = document_name
+        CURRENT_DOCUMENT["document_type"] = selected_type
+        CURRENT_DOCUMENT["chunker"] = chunker_type
+        print(f"[Pipeline cache hit] document={resolved_path} chunker={chunker_type}")
+        return
+
+    pipeline_start = time.perf_counter()
 
     # Parsing
     parse_start = time.perf_counter()
@@ -149,6 +190,7 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
     )
 
     query_engine = Retrieval(store)
+    PIPELINE_CACHE[cache_key] = query_engine
     CURRENT_DOCUMENT["document"] = document_name
     CURRENT_DOCUMENT["document_type"] = selected_type
     CURRENT_DOCUMENT["chunker"] = chunker_type
@@ -232,16 +274,18 @@ def search(
     max_results: Optional[int] = None,
 ):
     try:
-        # Use specified chunker or fall back to current one
-        selected_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]
-        
-        if document is not None or document_type is not None:
-            load_pipeline(document or CURRENT_DOCUMENT["document"], document_type, selected_chunker)
-        elif query_engine is None:
-            load_pipeline(DEFAULT_DOCUMENT, DEFAULT_DOCUMENT_TYPE, selected_chunker)
-        elif chunker_type is not None:
-            # If chunker type changed, reload pipeline with same document
-            load_pipeline(CURRENT_DOCUMENT["document"], CURRENT_DOCUMENT["document_type"], selected_chunker)
+        target_document = document or CURRENT_DOCUMENT["document"]
+        target_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]
+        target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
+
+        if pipeline_needs_switch(
+            target_document,
+            target_chunker,
+            has_engine=query_engine is not None,
+            current_document=CURRENT_DOCUMENT["document"],
+            current_chunker=CURRENT_DOCUMENT["chunker"],
+        ):
+            load_pipeline(target_document, target_document_type, target_chunker)
 
         search_before = snapshot()
 
