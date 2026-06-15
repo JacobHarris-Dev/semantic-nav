@@ -3,7 +3,17 @@ from typing import Optional, Tuple
 
 from fastapi import FastAPI, HTTPException
 
-from app.config import MODE, OFFLINE, ONLINE, MODEL_CACHE_DIR, MODEL_NAME, ALLOW_DOWNLOAD
+from app.config import (
+    MODE,
+    OFFLINE,
+    ONLINE,
+    MODEL_CACHE_DIR,
+    MODEL_NAME,
+    ALLOW_DOWNLOAD,
+    DEBUG_CHUNKS,
+    DEBUG_CHUNKS_DIR,
+)
+from app.debug.chunk_dump import write_chunks_debug_file
 from app.parsing.md_parser import read_markdown
 from app.parsing.pdf_parser import extract_text_from_pdf
 from app.parsing.txt_parser import read_txt
@@ -169,6 +179,15 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
         chunk_after,
         {"stage_tokens": estimate_tokens(text[:1000])},
     )
+
+    if DEBUG_CHUNKS:
+        debug_path = write_chunks_debug_file(
+            resolved_path,
+            chunker_type,
+            chunks,
+            debug_dir=DEBUG_CHUNKS_DIR,
+        )
+        print(f"[Debug chunks] wrote {len(chunks)} chunks to {debug_path.as_posix()}")
 
     # Embedding
     embed_before = snapshot()
