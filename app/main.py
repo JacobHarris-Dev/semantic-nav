@@ -12,6 +12,8 @@ from app.config import (
     ALLOW_DOWNLOAD,
     DEBUG_CHUNKS,
     DEBUG_CHUNKS_DIR,
+    SUBQUERY_MAX_RESULTS,
+    SUBQUERY_CONFIDENCE_THRESHOLD,
 )
 from app.debug.chunk_dump import write_chunks_debug_file
 from app.parsing.md_parser import read_markdown
@@ -284,6 +286,35 @@ def normalize_confidence_threshold(value: float) -> float:
     return value
 
 
+def resolve_subquery_confidence_threshold(
+    api_value: Optional[float],
+    confidence_threshold: float,
+) -> float:
+    """Resolve subquery confidence threshold from request param, env default, or main threshold."""
+    if api_value is not None:
+        return normalize_confidence_threshold(api_value)
+
+    if SUBQUERY_CONFIDENCE_THRESHOLD is not None:
+        return normalize_confidence_threshold(SUBQUERY_CONFIDENCE_THRESHOLD)
+
+    return confidence_threshold
+
+
+def resolve_subquery_max_results(value: Optional[int], k: int) -> int:
+    """Resolve per-subquery result cap from request param, env default, or k."""
+    if value is not None:
+        if value <= 0:
+            raise ValueError("subquery_max_results must be greater than 0")
+        return value
+
+    if SUBQUERY_MAX_RESULTS is not None:
+        if SUBQUERY_MAX_RESULTS <= 0:
+            raise ValueError("SN_SUBQUERY_MAX_RESULTS must be greater than 0")
+        return SUBQUERY_MAX_RESULTS
+
+    return k
+
+
 @app.get("/search")
 def search(
     q: str,
@@ -293,6 +324,8 @@ def search(
     k: int = 3,
     confidence_threshold: float = 0.0,
     max_results: Optional[int] = None,
+    subquery_max_results: Optional[int] = None,
+    subquery_confidence_threshold: Optional[float] = None,
 ):
     try:
         target_document = document or CURRENT_DOCUMENT["document"]
@@ -330,6 +363,11 @@ def search(
             cleaned_q = normalize_query(rewritten_query)
 
         confidence_threshold = normalize_confidence_threshold(confidence_threshold)
+        resolved_subquery_max_results = resolve_subquery_max_results(subquery_max_results, k)
+        resolved_subquery_confidence_threshold = resolve_subquery_confidence_threshold(
+            subquery_confidence_threshold,
+            confidence_threshold,
+        )
 
         if ONLINE:
             split_before = snapshot()
@@ -361,11 +399,17 @@ def search(
             for subquery in subqueries:
                 hits = query_engine.query(
                     subquery,
-                    k=k,
-                    confidence_threshold=confidence_threshold,
-                    max_results=None,
+                    k=resolved_subquery_max_results,
+                    confidence_threshold=resolved_subquery_confidence_threshold,
+                    max_results=resolved_subquery_max_results,
                 )
-                subquery_results.append({"subquery": subquery, "results": hits})
+                subquery_results.append(
+                    {
+                        "subquery": subquery,
+                        "confidence_threshold": resolved_subquery_confidence_threshold,
+                        "results": hits,
+                    }
+                )
 
             merge_cap = max_results if max_results is not None else k
             results = merge_subquery_results(
@@ -412,6 +456,10 @@ def search(
         "subquery_results": subquery_results,
         "confidence_threshold": confidence_threshold,
         "max_results": max_results,
+        "subquery_max_results": resolved_subquery_max_results if len(subqueries) > 1 else None,
+        "subquery_confidence_threshold": (
+            resolved_subquery_confidence_threshold if len(subqueries) > 1 else None
+        ),
         "results": results,
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],

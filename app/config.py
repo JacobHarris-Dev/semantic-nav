@@ -28,3 +28,13 @@ if QUERY_SPLITTER not in VALID_QUERY_SPLITTERS:
         f"SN_QUERY_SPLITTER must be one of {VALID_QUERY_SPLITTERS}, got {QUERY_SPLITTER!r}"
     )
 QUERY_SPLITTER_MODEL = os.environ.get("SN_QUERY_SPLITTER_MODEL", "").strip()
+
+_subquery_max_results_raw = os.environ.get("SN_SUBQUERY_MAX_RESULTS", "").strip()
+SUBQUERY_MAX_RESULTS: int | None = (
+    int(_subquery_max_results_raw) if _subquery_max_results_raw else None
+)
+
+_subquery_confidence_threshold_raw = os.environ.get("SN_SUBQUERY_CONFIDENCE_THRESHOLD", "").strip()
+SUBQUERY_CONFIDENCE_THRESHOLD: float | None = (
+    float(_subquery_confidence_threshold_raw) if _subquery_confidence_threshold_raw else None
+)

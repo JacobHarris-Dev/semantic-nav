@@ -1,6 +1,11 @@
 import unittest
+from unittest.mock import patch
 
-from app.main import normalize_confidence_threshold, pipeline_needs_switch
+from app.main import (
+    normalize_confidence_threshold,
+    pipeline_needs_switch,
+    resolve_subquery_confidence_threshold,
+)
 
 
 class MainTests(unittest.TestCase):
@@ -19,6 +24,28 @@ class MainTests(unittest.TestCase):
     def test_normalize_confidence_threshold_rejects_over_100(self):
         with self.assertRaises(ValueError):
             normalize_confidence_threshold(101)
+
+
+class SubqueryConfidenceThresholdTests(unittest.TestCase):
+    def test_uses_api_value_when_provided(self):
+        self.assertEqual(
+            resolve_subquery_confidence_threshold(40, 0.3),
+            0.4,
+        )
+
+    @patch("app.main.SUBQUERY_CONFIDENCE_THRESHOLD", 25)
+    def test_uses_env_default_when_api_value_missing(self):
+        self.assertEqual(
+            resolve_subquery_confidence_threshold(None, 0.3),
+            0.25,
+        )
+
+    @patch("app.main.SUBQUERY_CONFIDENCE_THRESHOLD", None)
+    def test_falls_back_to_main_threshold(self):
+        self.assertEqual(
+            resolve_subquery_confidence_threshold(None, 0.3),
+            0.3,
+        )
 
 
 class PipelineSwitchTests(unittest.TestCase):
