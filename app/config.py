@@ -20,3 +20,11 @@ ONLINE = MODE == "online"
 # When true, write a developer-only chunk dump after the first chunk of each document/chunker pair.
 DEBUG_CHUNKS = os.environ.get("SN_DEBUG_CHUNKS", "false").strip().lower() in ("1", "true", "yes")
 DEBUG_CHUNKS_DIR = Path(os.environ.get("SN_DEBUG_CHUNKS_DIR", str(Path.cwd() / "cache" / "debug")))
+
+VALID_QUERY_SPLITTERS = ("groq", "gemini", "cerebras")
+QUERY_SPLITTER = os.environ.get("SN_QUERY_SPLITTER", "groq").strip().lower()
+if QUERY_SPLITTER not in VALID_QUERY_SPLITTERS:
+    raise ValueError(
+        f"SN_QUERY_SPLITTER must be one of {VALID_QUERY_SPLITTERS}, got {QUERY_SPLITTER!r}"
+    )
+QUERY_SPLITTER_MODEL = os.environ.get("SN_QUERY_SPLITTER_MODEL", "").strip()

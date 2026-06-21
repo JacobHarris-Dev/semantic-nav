@@ -23,6 +23,8 @@ from app.embedding.faiss_embedder import FAISSEmbedder
 from app.embedding.retrieval import Retrieval
 from app.processing.query_normalizer import normalize_query
 from app.processing.query_rewriter import rewrite_query
+from app.processing.query_splitter import split_query
+from app.processing.result_merger import merge_subquery_results
 from app.processing.result_reranker import rerank_results
 from app.processing.metrics import (
     snapshot,
@@ -328,13 +330,49 @@ def search(
             cleaned_q = normalize_query(rewritten_query)
 
         confidence_threshold = normalize_confidence_threshold(confidence_threshold)
+
+        if ONLINE:
+            split_before = snapshot()
+            subqueries = split_query(cleaned_q)
+            split_after = snapshot()
+            print_stage_metrics(
+                "query split",
+                split_before,
+                split_after,
+                {
+                    "subquery_count": len(subqueries),
+                },
+            )
+        else:
+            subqueries = [cleaned_q]
+
+        subquery_results = None
         query_before = snapshot()
-        results = query_engine.query(
-            cleaned_q,
-            k=k,
-            confidence_threshold=confidence_threshold,
-            max_results=max_results,
-        )
+
+        if len(subqueries) == 1:
+            results = query_engine.query(
+                subqueries[0],
+                k=k,
+                confidence_threshold=confidence_threshold,
+                max_results=max_results,
+            )
+        else:
+            subquery_results = []
+            for subquery in subqueries:
+                hits = query_engine.query(
+                    subquery,
+                    k=k,
+                    confidence_threshold=confidence_threshold,
+                    max_results=None,
+                )
+                subquery_results.append({"subquery": subquery, "results": hits})
+
+            merge_cap = max_results if max_results is not None else k
+            results = merge_subquery_results(
+                [(item["subquery"], item["results"]) for item in subquery_results],
+                max_results=merge_cap,
+            )
+
         query_after = snapshot()
         print_stage_metrics(
             "FAISS retrieval",
@@ -342,6 +380,7 @@ def search(
             query_after,
             {
                 "embedding_tokens": estimate_tokens(cleaned_q),
+                "subquery_count": len(subqueries),
             },
         )
 
@@ -369,6 +408,8 @@ def search(
         "query": q,
         "rewritten_query": rewritten_query,
         "cleaned_query": cleaned_q,
+        "subqueries": subqueries,
+        "subquery_results": subquery_results,
         "confidence_threshold": confidence_threshold,
         "max_results": max_results,
         "results": results,

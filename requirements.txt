@@ -11,3 +11,5 @@ pymupdf
 psutil
 groq
 python-dotenv
+google-genai
+cerebras-cloud-sdk
