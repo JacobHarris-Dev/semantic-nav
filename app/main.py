@@ -14,6 +14,8 @@ from app.config import (
     DEBUG_CHUNKS_DIR,
     SUBQUERY_MAX_RESULTS,
     SUBQUERY_CONFIDENCE_THRESHOLD,
+    OUTLINE_BRANCH_FACTOR,
+    OUTLINE_MAX_DEPTH,
 )
 from app.debug.chunk_dump import write_chunks_debug_file
 from app.parsing.md_parser import read_markdown
@@ -28,6 +30,7 @@ from app.processing.query_rewriter import rewrite_query
 from app.processing.query_splitter import split_query
 from app.processing.result_merger import merge_subquery_results
 from app.processing.result_reranker import rerank_results
+from app.processing.topic_tree import build_topic_tree, normalize_outline_param
 from app.processing.metrics import (
     snapshot,
     estimate_tokens,
@@ -48,10 +51,69 @@ CURRENT_DOCUMENT = {
 }
 query_engine = None
 PIPELINE_CACHE = {}
+OUTLINE_CACHE = {}
 
 
 def pipeline_cache_key(resolved_path: str, chunker_type: str) -> Tuple[str, str]:
     return (resolved_path, chunker_type)
+
+
+def outline_cache_key(
+    resolved_path: str,
+    chunker_type: str,
+    branch_factor: int,
+    max_depth: int,
+) -> Tuple[str, str, int, int]:
+    return (resolved_path, chunker_type, branch_factor, max_depth)
+
+
+def resolve_outline_params(
+    branch_factor: Optional[int],
+    max_depth: Optional[int],
+) -> Tuple[int, int]:
+    resolved_branch_factor = branch_factor if branch_factor is not None else OUTLINE_BRANCH_FACTOR
+    resolved_max_depth = max_depth if max_depth is not None else OUTLINE_MAX_DEPTH
+    return (
+        normalize_outline_param(resolved_branch_factor, "branch_factor", minimum=1, maximum=50),
+        normalize_outline_param(resolved_max_depth, "max_depth", minimum=1, maximum=10),
+    )
+
+
+def get_or_build_outline(
+    *,
+    branch_factor: int,
+    max_depth: int,
+) -> Optional[dict]:
+    if query_engine is None:
+        raise RuntimeError("Document pipeline is not loaded.")
+
+    resolved_path = resolve_document_path(CURRENT_DOCUMENT["document"])
+    chunker_type = CURRENT_DOCUMENT["chunker"]
+    cache_key = outline_cache_key(resolved_path, chunker_type, branch_factor, max_depth)
+
+    cached_outline = OUTLINE_CACHE.get(cache_key)
+    if cached_outline is not None:
+        return cached_outline
+
+    store = query_engine.store
+    outline_root = build_topic_tree(
+        store.chunks,
+        store.embeddings,
+        branch_factor=branch_factor,
+        max_depth=max_depth,
+    )
+
+    payload = {
+        "document": CURRENT_DOCUMENT["document"],
+        "document_type": CURRENT_DOCUMENT["document_type"],
+        "chunker": chunker_type,
+        "branch_factor": branch_factor,
+        "max_depth": max_depth,
+        "chunk_count": len(store.chunks),
+        "root": outline_root,
+    }
+    OUTLINE_CACHE[cache_key] = payload
+    return payload
 
 
 def pipeline_needs_switch(
@@ -313,6 +375,44 @@ def resolve_subquery_max_results(value: Optional[int], k: int) -> int:
         return SUBQUERY_MAX_RESULTS
 
     return k
+
+
+@app.get("/outline")
+def outline(
+    document: Optional[str] = None,
+    document_type: Optional[str] = None,
+    chunker_type: Optional[str] = None,
+    branch_factor: Optional[int] = None,
+    max_depth: Optional[int] = None,
+):
+    try:
+        target_document = document or CURRENT_DOCUMENT["document"]
+        target_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]
+        target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
+
+        if pipeline_needs_switch(
+            target_document,
+            target_chunker,
+            has_engine=query_engine is not None,
+            current_document=CURRENT_DOCUMENT["document"],
+            current_chunker=CURRENT_DOCUMENT["chunker"],
+        ):
+            load_pipeline(target_document, target_document_type, target_chunker)
+
+        resolved_branch_factor, resolved_max_depth = resolve_outline_params(
+            branch_factor,
+            max_depth,
+        )
+        return get_or_build_outline(
+            branch_factor=resolved_branch_factor,
+            max_depth=resolved_max_depth,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/search")

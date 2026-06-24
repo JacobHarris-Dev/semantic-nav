@@ -13,3 +13,4 @@ groq
 python-dotenv
 google-genai
 cerebras-cloud-sdk
+scikit-learn

@@ -38,3 +38,6 @@ _subquery_confidence_threshold_raw = os.environ.get("SN_SUBQUERY_CONFIDENCE_THRE
 SUBQUERY_CONFIDENCE_THRESHOLD: float | None = (
     float(_subquery_confidence_threshold_raw) if _subquery_confidence_threshold_raw else None
 )
+
+OUTLINE_BRANCH_FACTOR = int(os.environ.get("SN_OUTLINE_BRANCH_FACTOR", "10").strip())
+OUTLINE_MAX_DEPTH = int(os.environ.get("SN_OUTLINE_MAX_DEPTH", "3").strip())

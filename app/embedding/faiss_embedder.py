@@ -29,6 +29,7 @@ class FAISSEmbedder:
 
         # Store original chunks (FAISS only stores vectors)
         self.chunks = []
+        self.embeddings = np.empty((0, self.dimension), dtype="float32")
 
     def add_chunks(self, chunks):
         """
@@ -46,7 +47,11 @@ class FAISSEmbedder:
         # 3. Add to FAISS index
         self.index.add(embeddings)
 
-        # 4. Store original chunks separately
+        # 4. Store original chunks and embeddings separately
         self.chunks.extend(chunks)
+        if len(self.embeddings) == 0:
+            self.embeddings = embeddings
+        else:
+            self.embeddings = np.vstack([self.embeddings, embeddings])
 
   
