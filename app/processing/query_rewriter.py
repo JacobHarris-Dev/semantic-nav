@@ -6,7 +6,7 @@ from app.processing.metrics import estimate_tokens
 
 
 def rewrite_query(raw_query: str) -> str:
-    """Rewrite a user query into a concise retrieval-friendly phrase.
+    """Extract short topic keywords from a user query for the query splitter.
 
     This is only invoked in online mode. In offline mode, the original query
     is returned unchanged.
@@ -31,10 +31,18 @@ def rewrite_query(raw_query: str) -> str:
     client = Groq(api_key=api_key)
 
     prompt = (
-        "Rewrite this search query into a concise phrase for semantic retrieval. "
-        "Keep the meaning exact, preserve all topics, remove navigation words and filler, "
-        "and return only the rewritten query.\n\n"
-        f"User query: {raw_query}"
+        "Extract distinct search topics from the user query for semantic document retrieval. "
+        "Return ONLY a comma-separated list of short topic keywords (1-3 words each). "
+        "Remove question words, navigation phrases, and filler. "
+        "Preserve every distinct topic; do not merge unrelated ideas. "
+        "Do not write full sentences or questions.\n\n"
+        "Examples:\n"
+        'User: "Where can I find grading policy and calculator rules for tests?"\n'
+        "Output: grading policy, calculators, tests\n\n"
+        'User: "food and navigation"\n'
+        "Output: food, navigation\n\n"
+        f'User query: "{raw_query}"\n'
+        "Output:"
     )
 
     prompt_tokens = estimate_tokens(prompt)
@@ -42,7 +50,8 @@ def rewrite_query(raw_query: str) -> str:
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=150
+        max_tokens=150,
+        temperature=0,
     )
 
     rewritten = response.choices[0].message.content.strip()
