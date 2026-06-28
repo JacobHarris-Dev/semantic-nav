@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from sklearn.cluster import KMeans
 
 
 @dataclass
@@ -68,6 +67,14 @@ def _node_centroid(node: _TreeNode, embeddings: np.ndarray) -> np.ndarray:
     return embeddings[node.chunk_indices].mean(axis=0)
 
 
+def _cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
+    left_norm = float(np.linalg.norm(left))
+    right_norm = float(np.linalg.norm(right))
+    if left_norm == 0.0 or right_norm == 0.0:
+        return 0.0
+    return float(np.dot(left, right) / (left_norm * right_norm))
+
+
 def _merge_nodes(
     nodes: List[_TreeNode],
     embeddings: np.ndarray,
@@ -91,28 +98,46 @@ def _cluster_nodes(
     chunks: List[Dict[str, Any]],
     branch_factor: int,
 ) -> List[_TreeNode]:
+    """Merge adjacent nodes bottom-up until the target count, preferring semantic similarity."""
     if len(nodes) <= 1:
         return nodes
 
     cluster_count = max(1, math.ceil(len(nodes) / branch_factor))
     cluster_count = min(cluster_count, len(nodes))
 
+    if cluster_count == len(nodes):
+        return sorted(nodes, key=lambda node: node.chunk_indices[0])
+
+    ordered_nodes = sorted(nodes, key=lambda node: node.chunk_indices[0])
+
     if cluster_count == 1:
-        return [_merge_nodes(nodes, embeddings, chunks)]
+        merged = ordered_nodes[0]
+        for next_node in ordered_nodes[1:]:
+            merged = _merge_nodes([merged, next_node], embeddings, chunks)
+        return [merged]
 
-    vectors = np.array([_node_centroid(node, embeddings) for node in nodes], dtype=np.float32)
-    labels = KMeans(n_clusters=cluster_count, n_init=10, random_state=0).fit_predict(vectors)
+    while len(ordered_nodes) > cluster_count:
+        best_index = 0
+        best_similarity = -float("inf")
 
-    grouped: Dict[int, List[_TreeNode]] = {}
-    for label, node in zip(labels, nodes):
-        grouped.setdefault(int(label), []).append(node)
+        for index in range(len(ordered_nodes) - 1):
+            left = _node_centroid(ordered_nodes[index], embeddings)
+            right = _node_centroid(ordered_nodes[index + 1], embeddings)
+            similarity = _cosine_similarity(left, right)
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_index = index
 
-    merged_nodes = [
-        _merge_nodes(group, embeddings, chunks)
-        for group in grouped.values()
-    ]
-    merged_nodes.sort(key=lambda node: node.chunk_indices[0])
-    return merged_nodes
+        merged = _merge_nodes(
+            [ordered_nodes[best_index], ordered_nodes[best_index + 1]],
+            embeddings,
+            chunks,
+        )
+        ordered_nodes = (
+            ordered_nodes[:best_index] + [merged] + ordered_nodes[best_index + 2 :]
+        )
+
+    return ordered_nodes
 
 
 def build_topic_tree(
@@ -122,7 +147,7 @@ def build_topic_tree(
     branch_factor: int = 10,
     max_depth: int = 3,
 ) -> Optional[Dict[str, Any]]:
-    """Build a bottom-up topic tree using chunk embeddings and centroid chunk titles."""
+    """Build a bottom-up topic tree from adjacent, semantically similar chunk groups."""
     if not chunks:
         return None
 
@@ -148,7 +173,10 @@ def build_topic_tree(
         merge_levels -= 1
 
     if len(nodes) > 1:
-        root = _merge_nodes(nodes, embeddings, chunks)
+        ordered_nodes = sorted(nodes, key=lambda node: node.chunk_indices[0])
+        root = ordered_nodes[0]
+        for next_node in ordered_nodes[1:]:
+            root = _merge_nodes([root, next_node], embeddings, chunks)
     else:
         root = nodes[0]
         if not root.title:

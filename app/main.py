@@ -18,6 +18,7 @@ from app.config import (
     OUTLINE_MAX_DEPTH,
 )
 from app.debug.chunk_dump import write_chunks_debug_file
+from app.debug.cluster_dump import write_clusters_debug_file
 from app.parsing.md_parser import read_markdown
 from app.parsing.pdf_parser import extract_text_from_pdf
 from app.parsing.txt_parser import read_txt
@@ -113,6 +114,19 @@ def get_or_build_outline(
         "root": outline_root,
     }
     OUTLINE_CACHE[cache_key] = payload
+
+    if DEBUG_CHUNKS:
+        debug_path = write_clusters_debug_file(
+            resolved_path,
+            chunker_type,
+            branch_factor=branch_factor,
+            max_depth=max_depth,
+            chunk_count=len(store.chunks),
+            root=outline_root,
+            debug_dir=DEBUG_CHUNKS_DIR,
+        )
+        print(f"[Debug clusters] wrote outline to {debug_path.as_posix()}")
+
     return payload
 
 
