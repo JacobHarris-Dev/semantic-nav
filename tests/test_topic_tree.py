@@ -4,10 +4,13 @@ import numpy as np
 
 from app.processing.topic_tree import (
     _TreeNode,
+    _build_document_tfidf,
     _cluster_nodes,
     build_topic_tree,
     normalize_outline_param,
+    title_for_cluster,
     title_from_centroid_chunk,
+    title_from_tfidf_keywords,
 )
 
 
@@ -35,6 +38,26 @@ class TopicTreeTests(unittest.TestCase):
 
         title = title_from_centroid_chunk([0, 1], embeddings, chunks)
         self.assertIn("Grading", title)
+
+    def test_title_from_tfidf_keywords_uses_distinctive_terms(self):
+        chunks = self._sample_chunks()
+        corpus_tfidf = _build_document_tfidf(chunks)
+        self.assertIsNotNone(corpus_tfidf)
+
+        title = title_from_tfidf_keywords([0, 1], corpus_tfidf)
+        lowered = title.lower()
+        self.assertTrue(
+            any(term in lowered for term in ("grading", "exam", "late", "submission", "penalties")),
+            msg=f"unexpected title: {title}",
+        )
+
+    def test_title_for_cluster_falls_back_to_centroid_for_single_chunk(self):
+        chunks = [{"text": "Only section", "start": 0, "end": 12}]
+        embeddings = np.array([[1.0, 0.0]], dtype=np.float32)
+        corpus_tfidf = _build_document_tfidf(chunks)
+
+        title = title_for_cluster([0], embeddings, chunks, corpus_tfidf)
+        self.assertEqual(title, "Only section")
 
     def test_build_topic_tree_returns_nested_structure(self):
         chunks = self._sample_chunks()
@@ -99,7 +122,8 @@ class TopicTreeTests(unittest.TestCase):
         )
 
         nodes = [_TreeNode(chunk_indices=[index], children=[]) for index in range(4)]
-        merged = _cluster_nodes(nodes, embeddings, chunks, branch_factor=2)
+        corpus_tfidf = _build_document_tfidf(chunks)
+        merged = _cluster_nodes(nodes, embeddings, chunks, branch_factor=2, corpus_tfidf=corpus_tfidf)
 
         self.assertEqual(len(merged), 2)
         self.assertEqual(merged[0].chunk_indices, [0, 1])
