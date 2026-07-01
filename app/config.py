@@ -41,3 +41,6 @@ SUBQUERY_CONFIDENCE_THRESHOLD: float | None = (
 
 OUTLINE_BRANCH_FACTOR = int(os.environ.get("SN_OUTLINE_BRANCH_FACTOR", "10").strip())
 OUTLINE_MAX_DEPTH = int(os.environ.get("SN_OUTLINE_MAX_DEPTH", "3").strip())
+OUTLINE_MAX_SECTIONS = int(os.environ.get("SN_OUTLINE_MAX_SECTIONS", "8").strip())
+OUTLINE_MIN_SECTION_CHUNKS = int(os.environ.get("SN_OUTLINE_MIN_SECTION_CHUNKS", "2").strip())
+OUTLINE_LLM_MAX_NODES = int(os.environ.get("SN_OUTLINE_LLM_MAX_NODES", "25").strip())

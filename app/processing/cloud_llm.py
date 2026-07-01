@@ -23,7 +23,7 @@ def _resolve_model() -> str:
     return DEFAULT_MODELS[QUERY_SPLITTER]
 
 
-def _complete_groq(prompt: str, *, max_tokens: int) -> str:
+def _complete_groq(prompt: str, *, max_tokens: int, temperature: float) -> str:
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is required for the groq query splitter.")
@@ -42,11 +42,12 @@ def _complete_groq(prompt: str, *, max_tokens: int) -> str:
         model=model,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=max_tokens,
+        temperature=temperature,
     )
     return response.choices[0].message.content.strip()
 
 
-def _complete_gemini(prompt: str, *, max_tokens: int) -> str:
+def _complete_gemini(prompt: str, *, max_tokens: int, temperature: float) -> str:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is required for the gemini query splitter.")
@@ -64,12 +65,15 @@ def _complete_gemini(prompt: str, *, max_tokens: int) -> str:
     response = client.models.generate_content(
         model=model,
         contents=prompt,
-        config={"max_output_tokens": max_tokens},
+        config={
+            "max_output_tokens": max_tokens,
+            "temperature": temperature,
+        },
     )
     return response.text.strip()
 
 
-def _complete_cerebras(prompt: str, *, max_tokens: int) -> str:
+def _complete_cerebras(prompt: str, *, max_tokens: int, temperature: float) -> str:
     api_key = os.environ.get("CEREBRAS_API_KEY")
     if not api_key:
         raise RuntimeError("CEREBRAS_API_KEY is required for the cerebras query splitter.")
@@ -88,6 +92,7 @@ def _complete_cerebras(prompt: str, *, max_tokens: int) -> str:
         model=model,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=max_tokens,
+        temperature=temperature,
     )
     return response.choices[0].message.content.strip()
 
@@ -99,18 +104,24 @@ _PROVIDERS: dict[str, Callable[..., str]] = {
 }
 
 
-def complete(prompt: str, *, max_tokens: int = 150) -> str:
+def complete(
+    prompt: str,
+    *,
+    max_tokens: int = 150,
+    temperature: float = 0,
+    metric_label: str = "query split",
+) -> str:
     """Run a completion against the configured query-splitter cloud provider."""
     provider = _PROVIDERS.get(QUERY_SPLITTER)
     if provider is None:
         raise RuntimeError(f"Unsupported query splitter provider: {QUERY_SPLITTER}")
 
     prompt_tokens = estimate_tokens(prompt)
-    result = provider(prompt, max_tokens=max_tokens)
+    result = provider(prompt, max_tokens=max_tokens, temperature=temperature)
     response_tokens = estimate_tokens(result)
 
     print(
-        f"[{QUERY_SPLITTER} metrics] query split prompt_tokens={prompt_tokens} "
+        f"[{QUERY_SPLITTER} metrics] {metric_label} prompt_tokens={prompt_tokens} "
         f"response_tokens={response_tokens}"
     )
 

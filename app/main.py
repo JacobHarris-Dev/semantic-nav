@@ -16,6 +16,8 @@ from app.config import (
     SUBQUERY_CONFIDENCE_THRESHOLD,
     OUTLINE_BRANCH_FACTOR,
     OUTLINE_MAX_DEPTH,
+    OUTLINE_MAX_SECTIONS,
+    OUTLINE_MIN_SECTION_CHUNKS,
 )
 from app.debug.chunk_dump import write_chunks_debug_file
 from app.debug.cluster_dump import write_clusters_debug_file
@@ -64,19 +66,24 @@ def outline_cache_key(
     chunker_type: str,
     branch_factor: int,
     max_depth: int,
-) -> Tuple[str, str, int, int]:
-    return (resolved_path, chunker_type, branch_factor, max_depth)
+    max_sections: int,
+    mode: str,
+) -> Tuple[str, str, int, int, int, str]:
+    return (resolved_path, chunker_type, branch_factor, max_depth, max_sections, mode)
 
 
 def resolve_outline_params(
     branch_factor: Optional[int],
     max_depth: Optional[int],
-) -> Tuple[int, int]:
+    max_sections: Optional[int] = None,
+) -> Tuple[int, int, int]:
     resolved_branch_factor = branch_factor if branch_factor is not None else OUTLINE_BRANCH_FACTOR
     resolved_max_depth = max_depth if max_depth is not None else OUTLINE_MAX_DEPTH
+    resolved_max_sections = max_sections if max_sections is not None else OUTLINE_MAX_SECTIONS
     return (
         normalize_outline_param(resolved_branch_factor, "branch_factor", minimum=1, maximum=50),
         normalize_outline_param(resolved_max_depth, "max_depth", minimum=1, maximum=10),
+        normalize_outline_param(resolved_max_sections, "max_sections", minimum=2, maximum=20),
     )
 
 
@@ -84,13 +91,16 @@ def get_or_build_outline(
     *,
     branch_factor: int,
     max_depth: int,
+    max_sections: int,
 ) -> Optional[dict]:
     if query_engine is None:
         raise RuntimeError("Document pipeline is not loaded.")
 
     resolved_path = resolve_document_path(CURRENT_DOCUMENT["document"])
     chunker_type = CURRENT_DOCUMENT["chunker"]
-    cache_key = outline_cache_key(resolved_path, chunker_type, branch_factor, max_depth)
+    cache_key = outline_cache_key(
+        resolved_path, chunker_type, branch_factor, max_depth, max_sections, MODE
+    )
 
     cached_outline = OUTLINE_CACHE.get(cache_key)
     if cached_outline is not None:
@@ -102,14 +112,18 @@ def get_or_build_outline(
         store.embeddings,
         branch_factor=branch_factor,
         max_depth=max_depth,
+        max_sections=max_sections,
+        min_section_chunks=OUTLINE_MIN_SECTION_CHUNKS,
     )
 
     payload = {
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
         "chunker": chunker_type,
+        "mode": MODE,
         "branch_factor": branch_factor,
         "max_depth": max_depth,
+        "max_sections": max_sections,
         "chunk_count": len(store.chunks),
         "root": outline_root,
     }
@@ -398,6 +412,7 @@ def outline(
     chunker_type: Optional[str] = None,
     branch_factor: Optional[int] = None,
     max_depth: Optional[int] = None,
+    max_sections: Optional[int] = None,
 ):
     try:
         target_document = document or CURRENT_DOCUMENT["document"]
@@ -413,13 +428,15 @@ def outline(
         ):
             load_pipeline(target_document, target_document_type, target_chunker)
 
-        resolved_branch_factor, resolved_max_depth = resolve_outline_params(
+        resolved_branch_factor, resolved_max_depth, resolved_max_sections = resolve_outline_params(
             branch_factor,
             max_depth,
+            max_sections,
         )
         return get_or_build_outline(
             branch_factor=resolved_branch_factor,
             max_depth=resolved_max_depth,
+            max_sections=resolved_max_sections,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
