@@ -2,11 +2,13 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import (
     MODE,
     OFFLINE,
     ONLINE,
+    CORS_ORIGINS,
     MODEL_CACHE_DIR,
     MODEL_NAME,
     ALLOW_DOWNLOAD,
@@ -43,6 +45,14 @@ from app.processing.metrics import (
 import time
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 DEFAULT_DOCUMENT = "pdf_example.pdf"
 DEFAULT_DOCUMENT_TYPE = "pdf"

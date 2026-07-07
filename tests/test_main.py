@@ -1,11 +1,40 @@
 import unittest
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
+
 from app.main import (
+    app,
     normalize_confidence_threshold,
     pipeline_needs_switch,
     resolve_subquery_confidence_threshold,
 )
+
+client = TestClient(app)
+
+
+class CorsTests(unittest.TestCase):
+    def test_status_includes_cors_header_for_allowed_origin(self):
+        response = client.get("/status", headers={"Origin": "http://localhost:5173"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("access-control-allow-origin"),
+            "http://localhost:5173",
+        )
+
+    def test_preflight_options_returns_cors_headers(self):
+        response = client.options(
+            "/search",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        self.assertIn(response.status_code, (200, 204))
+        self.assertEqual(
+            response.headers.get("access-control-allow-origin"),
+            "http://localhost:5173",
+        )
 
 
 class MainTests(unittest.TestCase):
