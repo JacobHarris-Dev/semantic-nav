@@ -1,18 +1,10 @@
 import { useEffect, useState } from "react";
 import { getOutline, getStatus, loadDocument, search } from "../api/endpoints";
+import { CHUNKERS, DOCUMENTS } from "../constants/documents";
 import { useApiCall } from "../hooks/useApiCall";
-import RequestPanel from "./RequestPanel";
-import ResponsePanel from "./ResponsePanel";
-import StatusBar from "./StatusBar";
-
-const DOCUMENTS = [
-  { name: "pdf_example.pdf", type: "pdf" },
-  { name: "txt_example.txt", type: "txt" },
-  { name: "md_example.md", type: "md" },
-  { name: "csv_example.csv", type: "csv" },
-];
-
-const CHUNKERS = ["semantic", "fixed"];
+import PlaygroundStatusBar from "../components/dev/PlaygroundStatusBar";
+import RequestPanel from "../components/dev/RequestPanel";
+import ResponsePanel from "../components/dev/ResponsePanel";
 
 export default function ApiPlayground() {
   const { loading, lastRequest, lastResponse, run } = useApiCall();
@@ -74,8 +66,8 @@ export default function ApiPlayground() {
     );
 
   return (
-    <div className="app-shell">
-      <StatusBar status={status} loading={loading} />
+    <div className="view-shell">
+      <PlaygroundStatusBar status={status} loading={loading} />
 
       <div className="controls-grid">
         <section className="panel control-panel">
