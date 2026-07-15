@@ -1,3 +1,5 @@
+import { recordApiDebugEntry } from "./debugLog";
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
 function buildUrl(path, params = {}) {
@@ -31,7 +33,7 @@ export async function apiGet(path, params = {}) {
         typeof data === "object" && data !== null && "detail" in data
           ? data.detail
           : `Request failed with status ${response.status}`;
-      return {
+      const result = {
         method: "GET",
         url,
         status: response.status,
@@ -39,9 +41,11 @@ export async function apiGet(path, params = {}) {
         error: typeof detail === "string" ? detail : JSON.stringify(detail),
         elapsedMs,
       };
+      recordApiDebugEntry(result);
+      return result;
     }
 
-    return {
+    const result = {
       method: "GET",
       url,
       status: response.status,
@@ -49,9 +53,11 @@ export async function apiGet(path, params = {}) {
       error: null,
       elapsedMs,
     };
+    recordApiDebugEntry(result);
+    return result;
   } catch (error) {
     const elapsedMs = Math.round(performance.now() - startedAt);
-    return {
+    const result = {
       method: "GET",
       url,
       status: null,
@@ -59,6 +65,8 @@ export async function apiGet(path, params = {}) {
       error: error instanceof Error ? error.message : String(error),
       elapsedMs,
     };
+    recordApiDebugEntry(result);
+    return result;
   }
 }
 

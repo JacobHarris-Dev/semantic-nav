@@ -113,6 +113,77 @@ def _open_preview_document(resolved_path: str, document_type: str) -> fitz.Docum
     return document
 
 
+def get_preview_text(document_name: str, document_type: str | None = None) -> dict[str, Any]:
+    resolved_path = resolve_document_path(document_name)
+    selected_type = document_type or infer_document_type(resolved_path)
+    text = extract_document_text(document_name, selected_type)
+    page_sections = _build_page_sections(resolved_path, selected_type)
+
+    return {
+        "document": document_name,
+        "document_type": selected_type,
+        "text": text,
+        "length": len(text),
+        "page_sections": page_sections,
+    }
+
+
+def _build_page_sections(resolved_path: str, document_type: str) -> list[dict[str, int]]:
+    if document_type != "pdf":
+        return []
+
+    document = fitz.open(resolved_path)
+    page_sections: list[dict[str, int]] = []
+    offset = 0
+
+    for page_index in range(document.page_count):
+        page_text = document[page_index].get_text()
+        page_sections.append(
+            {
+                "page": page_index + 1,
+                "start": offset,
+                "end": offset + len(page_text),
+            }
+        )
+        offset += len(page_text)
+
+    return page_sections
+
+
+def locate_text_span(
+    document_name: str,
+    document_type: str | None,
+    start: int | None,
+    end: int | None,
+) -> dict[str, Any] | None:
+    if start is None or end is None or start < 0 or end <= start:
+        return None
+
+    resolved_path = resolve_document_path(document_name)
+    selected_type = document_type or infer_document_type(resolved_path)
+    text = extract_document_text(document_name, selected_type)
+
+    if end > len(text):
+        end = len(text)
+    if start >= len(text):
+        return None
+
+    page_sections = _build_page_sections(resolved_path, selected_type)
+    overlapping_pages = [
+        section["page"]
+        for section in page_sections
+        if section["end"] > start and section["start"] < end
+    ]
+
+    return {
+        "start": start,
+        "end": end,
+        "text": text[start:end],
+        "primary_page": overlapping_pages[0] if overlapping_pages else None,
+        "pages": overlapping_pages,
+    }
+
+
 def get_preview_meta(document_name: str, document_type: str | None = None) -> dict[str, Any]:
     resolved_path = resolve_document_path(document_name)
     selected_type = document_type or infer_document_type(resolved_path)

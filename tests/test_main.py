@@ -142,6 +142,30 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(payload["document"], "pdf_example.pdf")
         self.assertGreater(payload["page_count"], 0)
 
+    def test_preview_text_returns_document_text(self):
+        client.get(
+            "/load",
+            params={"document": "pdf_example.pdf", "chunker_type": "semantic"},
+        )
+        response = client.get(
+            "/preview/text",
+            params={"document": "pdf_example.pdf", "chunker_type": "semantic"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["document"], "pdf_example.pdf")
+        self.assertGreater(payload["length"], 0)
+        self.assertIsInstance(payload["text"], str)
+        self.assertIsInstance(payload["page_sections"], list)
+        self.assertIsInstance(payload["chunks"], list)
+        if payload["page_sections"]:
+            self.assertIn("page", payload["page_sections"][0])
+            self.assertIn("start", payload["page_sections"][0])
+        if payload["chunks"]:
+            self.assertIn("start", payload["chunks"][0])
+            self.assertIn("end", payload["chunks"][0])
+            self.assertIn("text", payload["chunks"][0])
+
     def test_preview_page_returns_png(self):
         response = client.get(
             "/preview/page",

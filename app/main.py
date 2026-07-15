@@ -43,7 +43,7 @@ from app.processing.metrics import (
     print_stage_metrics,
     print_total_metrics,
 )
-from app.preview.document_preview import get_preview_meta, render_preview_page_png
+from app.preview.document_preview import get_preview_meta, get_preview_text, locate_text_span, render_preview_page_png
 import time
 
 app = FastAPI()
@@ -235,6 +235,45 @@ def extract_document_text(document_name: str, document_type: Optional[str] = Non
     raise ValueError(f"Unsupported document type: {selected_type}")
 
 
+def get_pipeline_chunks(
+    document_name: str,
+    document_type: Optional[str],
+    chunker_type: Optional[str],
+) -> list[dict]:
+    target_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]
+    target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
+
+    if pipeline_needs_switch(
+        document_name,
+        target_chunker,
+        has_engine=query_engine is not None,
+        current_document=CURRENT_DOCUMENT["document"],
+        current_chunker=CURRENT_DOCUMENT["chunker"],
+    ):
+        load_pipeline(document_name, target_document_type, target_chunker)
+
+    if query_engine is None:
+        return []
+
+    chunks = []
+    for chunk in query_engine.store.chunks:
+        if not isinstance(chunk, dict):
+            continue
+        start = chunk.get("start")
+        end = chunk.get("end")
+        if start is None or end is None:
+            continue
+        chunks.append(
+            {
+                "start": start,
+                "end": end,
+                "text": chunk.get("text", ""),
+            }
+        )
+
+    return chunks
+
+
 def load_pipeline(document_name: str, document_type: Optional[str] = None, chunker_type: str = "semantic"):
     """Load document, parse, chunk, embed, and build retrieval index.
 
@@ -389,6 +428,28 @@ def preview_meta(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/preview/text")
+def preview_text(
+    document: Optional[str] = None,
+    document_type: Optional[str] = None,
+    chunker_type: Optional[str] = None,
+):
+    try:
+        target_document = document or CURRENT_DOCUMENT["document"]
+        target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
+        payload = get_preview_text(target_document, target_document_type)
+        payload["chunks"] = get_pipeline_chunks(
+            target_document,
+            target_document_type,
+            chunker_type,
+        )
+        return payload
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/preview/page")
 def preview_page(
     page: int,
@@ -410,6 +471,27 @@ def preview_page(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def attach_result_locations(
+    results: list[dict],
+    *,
+    document_name: str,
+    document_type: str | None,
+) -> list[dict]:
+    enriched = []
+    for result in results:
+        item = dict(result)
+        location = locate_text_span(
+            document_name,
+            document_type,
+            item.get("start"),
+            item.get("end"),
+        )
+        if location is not None:
+            item["location"] = location
+        enriched.append(item)
+    return enriched
 
 
 def normalize_confidence_threshold(value: float) -> float:
@@ -629,6 +711,12 @@ def search(
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    enriched_results = attach_result_locations(
+        results,
+        document_name=target_document,
+        document_type=target_document_type,
+    )
+
     return {
         "query": q,
         "rewritten_query": rewritten_query,
@@ -641,7 +729,7 @@ def search(
         "subquery_confidence_threshold": (
             resolved_subquery_confidence_threshold if len(subqueries) > 1 else None
         ),
-        "results": results,
+        "results": enriched_results,
         "document": CURRENT_DOCUMENT["document"],
         "document_type": CURRENT_DOCUMENT["document_type"],
         "chunker": CURRENT_DOCUMENT["chunker"],

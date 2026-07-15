@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { annotateLatestDebugEntry } from "../api/debugLog";
 
 export function useApiCall() {
   const [loading, setLoading] = useState(false);
@@ -10,6 +11,7 @@ export function useApiCall() {
     setLastRequest({ label, at: new Date().toISOString() });
 
     const result = await requestFn();
+    annotateLatestDebugEntry(label);
     setLastResponse({ label, ...result });
     setLoading(false);
     return result;
