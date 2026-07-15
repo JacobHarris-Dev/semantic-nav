@@ -134,5 +134,23 @@ class PipelineSwitchTests(unittest.TestCase):
         )
 
 
+class PreviewTests(unittest.TestCase):
+    def test_preview_meta_returns_page_count(self):
+        response = client.get("/preview/meta", params={"document": "pdf_example.pdf"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["document"], "pdf_example.pdf")
+        self.assertGreater(payload["page_count"], 0)
+
+    def test_preview_page_returns_png(self):
+        response = client.get(
+            "/preview/page",
+            params={"document": "pdf_example.pdf", "page": 1},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("content-type"), "image/png")
+        self.assertGreater(len(response.content), 100)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from app.config import (
     MODE,
@@ -42,6 +43,7 @@ from app.processing.metrics import (
     print_stage_metrics,
     print_total_metrics,
 )
+from app.preview.document_preview import get_preview_meta, render_preview_page_png
 import time
 
 app = FastAPI()
@@ -370,6 +372,44 @@ def status():
         "chunker": CURRENT_DOCUMENT["chunker"],
         "mode": MODE,
     }
+
+
+@app.get("/preview/meta")
+def preview_meta(
+    document: Optional[str] = None,
+    document_type: Optional[str] = None,
+):
+    try:
+        target_document = document or CURRENT_DOCUMENT["document"]
+        target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
+        return get_preview_meta(target_document, target_document_type)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/preview/page")
+def preview_page(
+    page: int,
+    document: Optional[str] = None,
+    document_type: Optional[str] = None,
+    scale: float = 1.0,
+):
+    try:
+        target_document = document or CURRENT_DOCUMENT["document"]
+        target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
+        png_bytes = render_preview_page_png(
+            target_document,
+            page,
+            document_type=target_document_type,
+            scale=scale,
+        )
+        return Response(content=png_bytes, media_type="image/png")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def normalize_confidence_threshold(value: float) -> float:

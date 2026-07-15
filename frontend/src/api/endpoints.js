@@ -1,4 +1,4 @@
-import { apiGet } from "./client";
+import { apiGet, buildUrl } from "./client";
 
 export function getStatus() {
   return apiGet("/status");
@@ -9,6 +9,22 @@ export function loadDocument({ document, document_type, chunker_type }) {
     document,
     document_type,
     chunker_type,
+  });
+}
+
+export function getPreviewMeta({ document, document_type } = {}) {
+  return apiGet("/preview/meta", {
+    document,
+    document_type,
+  });
+}
+
+export function buildPreviewPageUrl({ document, document_type, page, scale = 1 } = {}) {
+  return buildUrl("/preview/page", {
+    document,
+    document_type,
+    page,
+    scale,
   });
 }
 
