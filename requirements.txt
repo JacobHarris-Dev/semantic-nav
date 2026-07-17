@@ -6,9 +6,9 @@ numpy
 pandas
 pydantic
 python-docx
-python-multipart
 pymupdf
 psutil
+spacy
 groq
 python-dotenv
 google-genai
