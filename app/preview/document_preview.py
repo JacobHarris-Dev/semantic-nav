@@ -1,4 +1,8 @@
-"""Render loaded documents as page images for the reader preview."""
+"""Document preview helpers for the reader UI and search result highlighting.
+
+Used by GET /preview/meta, /preview/text, and /preview/page in main.py.
+Search hits are mapped back into the document via locate_text_span().
+"""
 
 from __future__ import annotations
 
@@ -114,6 +118,10 @@ def _open_preview_document(resolved_path: str, document_type: str) -> fitz.Docum
 
 
 def get_preview_text(document_name: str, document_type: str | None = None) -> dict[str, Any]:
+    """Return full document text and PDF page boundaries for the reader.
+
+    Chunks are attached separately in main.preview_text via get_pipeline_chunks().
+    """
     resolved_path = resolve_document_path(document_name)
     selected_type = document_type or infer_document_type(resolved_path)
     text = extract_document_text(document_name, selected_type)
@@ -129,6 +137,7 @@ def get_preview_text(document_name: str, document_type: str | None = None) -> di
 
 
 def _build_page_sections(resolved_path: str, document_type: str) -> list[dict[str, int]]:
+    """Map each PDF page to a character range in the extracted text."""
     if document_type != "pdf":
         return []
 
@@ -156,6 +165,11 @@ def locate_text_span(
     start: int | None,
     end: int | None,
 ) -> dict[str, Any] | None:
+    """Map a search hit's character offsets to text and page numbers.
+
+    Returned as result.location in GET /search — used by the frontend to
+    scroll to and highlight the matching passage.
+    """
     if start is None or end is None or start < 0 or end <= start:
         return None
 

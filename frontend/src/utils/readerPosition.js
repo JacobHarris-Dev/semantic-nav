@@ -1,3 +1,8 @@
+/**
+ * Map between character offsets (from the API) and chunk indices (for navigation).
+ */
+
+/** Find which chunk contains a character position, e.g. from a search hit's location.start. */
 export function findChunkIndex(chunks, position) {
   if (!chunks.length) {
     return 0;
@@ -14,6 +19,7 @@ export function findChunkIndex(chunks, position) {
   return nextIndex >= 0 ? nextIndex : chunks.length - 1;
 }
 
+/** Convert the active chunk into a highlight range for DocumentPreview. */
 export function chunkToHighlight(chunk, pageSections = []) {
   if (!chunk) {
     return null;

@@ -1,3 +1,23 @@
+"""FastAPI entry point for semantic document search.
+
+Pipeline: parse document -> chunk -> embed -> FAISS index -> query.
+
+HTTP routes (all GET):
+  /              health check
+  /load          index a document (call before search for that doc)
+  /status        currently loaded document and mode
+  /search        semantic search; results include location for highlighting
+  /outline       topic tree built from chunk embeddings
+  /preview/meta  page count and metadata
+  /preview/text  extracted text, page_sections, and chunks (reader UI)
+  /preview/page  PDF page rendered as PNG
+
+Integration flow for a custom frontend:
+  1. GET /load?document=...&chunker_type=semantic
+  2. GET /preview/text?document=...  (optional, for rendering/highlighting)
+  3. GET /search?q=...&k=3&confidence_threshold=30
+"""
+
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -59,14 +79,23 @@ app.add_middleware(
 DEFAULT_DOCUMENT = "pdf_example.pdf"
 DEFAULT_DOCUMENT_TYPE = "pdf"
 DEFAULT_CHUNKER = "semantic"
+
+# Tracks the document currently selected by the most recent /load or /search call.
 CURRENT_DOCUMENT = {
     "document": DEFAULT_DOCUMENT,
     "document_type": DEFAULT_DOCUMENT_TYPE,
     "chunker": DEFAULT_CHUNKER,
 }
+
+# Active FAISS retrieval engine for the current document/chunker pair.
 query_engine = None
+
+# Session caches — avoid re-parsing and re-embedding the same document.
 PIPELINE_CACHE = {}
 OUTLINE_CACHE = {}
+
+
+# --- Document resolution ---
 
 
 def pipeline_cache_key(resolved_path: str, chunker_type: str) -> Tuple[str, str]:
@@ -196,6 +225,7 @@ def infer_document_type(document_path: str) -> str:
 
 
 def resolve_document_path(document_name: str) -> str:
+    """Resolve a filename to a path, checking cwd then app/data/."""
     candidate = Path(document_name)
 
     if candidate.exists():
@@ -240,6 +270,7 @@ def get_pipeline_chunks(
     document_type: Optional[str],
     chunker_type: Optional[str],
 ) -> list[dict]:
+    """Return indexed chunks with character offsets for the reader UI."""
     target_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]
     target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
 
@@ -373,6 +404,9 @@ def load_pipeline(document_name: str, document_type: Optional[str] = None, chunk
     print(f"  total: {total_time:.3f}s")
 
 
+# --- HTTP routes ---
+
+
 @app.on_event("startup")
 async def startup_event():
     print(f"Initializing semantic pipeline in {MODE} mode...")
@@ -387,6 +421,7 @@ def root():
 
 @app.get("/load")
 def load_document(document: str = DEFAULT_DOCUMENT, document_type: Optional[str] = None, chunker_type: str = "semantic"):
+    """Parse, chunk, embed, and index a document. Required before search."""
     try:
         load_pipeline(document, document_type, chunker_type)
     except FileNotFoundError as exc:
@@ -434,6 +469,7 @@ def preview_text(
     document_type: Optional[str] = None,
     chunker_type: Optional[str] = None,
 ):
+    """Return extracted text, PDF page boundaries, and pipeline chunks."""
     try:
         target_document = document or CURRENT_DOCUMENT["document"]
         target_document_type = document_type or CURRENT_DOCUMENT["document_type"]
@@ -479,6 +515,7 @@ def attach_result_locations(
     document_name: str,
     document_type: str | None,
 ) -> list[dict]:
+    """Add a location object to each search hit for frontend scroll/highlight."""
     enriched = []
     for result in results:
         item = dict(result)
@@ -590,6 +627,11 @@ def search(
     subquery_max_results: Optional[int] = None,
     subquery_confidence_threshold: Optional[float] = None,
 ):
+    """Semantic search over the loaded document.
+
+    Offline: normalize query -> FAISS retrieval.
+    Online: rewrite -> split into subqueries -> retrieve -> merge -> rerank.
+    """
     try:
         target_document = document or CURRENT_DOCUMENT["document"]
         target_chunker = chunker_type or CURRENT_DOCUMENT["chunker"]

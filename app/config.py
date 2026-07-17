@@ -1,3 +1,9 @@
+"""Application configuration loaded from environment variables.
+
+Copy .env.example to .env and adjust values there.
+See README.md for offline vs online mode and first-run model download notes.
+"""
+
 import os
 from pathlib import Path
 
@@ -10,8 +16,8 @@ MODE = os.environ.get("SN_MODE", "offline").strip().lower()
 MODEL_NAME = os.environ.get("SN_MODEL_NAME", "all-MiniLM-L6-v2").strip()
 MODEL_CACHE_DIR = os.environ.get("SN_MODEL_CACHE_DIR", str(Path.cwd() / "models")).strip()
 
-# If true, allow model downloads even in offline mode.
-# By default offline rejects downloads and online allows them.
+# Offline mode blocks Hugging Face downloads unless SN_ALLOW_DOWNLOAD=true.
+# Online mode always allows downloads (see main.load_pipeline allow_download logic).
 ALLOW_DOWNLOAD = os.environ.get("SN_ALLOW_DOWNLOAD", "false").strip().lower() in ("1", "true", "yes")
 
 OFFLINE = MODE == "offline"
@@ -49,4 +55,5 @@ _cors_origins_raw = os.environ.get(
     "SN_CORS_ORIGINS",
     "http://localhost:5173,http://127.0.0.1:5173",
 ).strip()
+# Origins allowed to call the API from a browser. Add your frontend URL here.
 CORS_ORIGINS = [origin.strip() for origin in _cors_origins_raw.split(",") if origin.strip()]

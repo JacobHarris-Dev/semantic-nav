@@ -1,3 +1,13 @@
+/**
+ * Document reader — reference integration for the semantic-nav API.
+ *
+ * User flow:
+ *   1. Pick a document -> GET /load (indexes on server)
+ *   2. DocumentPreview fetches GET /preview/text (text + chunks)
+ *   3. Search -> GET /search -> jump to chunk via location.start
+ *   4. Prev/next arrows navigate chunks; TTS reads the active chunk aloud
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadDocument } from "../api/endpoints";
 import DocumentMenu from "../components/reader/DocumentMenu";
@@ -9,6 +19,7 @@ import { CHUNKERS, DOCUMENTS } from "../constants/documents";
 import { useApiCall } from "../hooks/useApiCall";
 import { findChunkIndex } from "../utils/readerPosition";
 
+/** Normalize a search result into a highlight range for DocumentPreview. */
 function resolveSearchHighlight(result) {
   if (!result) {
     return null;
@@ -53,6 +64,7 @@ export default function ReaderView() {
     setPageSections([]);
     setActiveChunkIndex(0);
 
+    // Step 1: tell the backend to parse, chunk, and embed this document.
     const result = await run("GET /load", () =>
       loadDocument({
         document: doc.name,
@@ -96,6 +108,7 @@ export default function ReaderView() {
       }
 
       previewRef.current?.stopSpeech();
+      // Map the search hit's character offset to a chunk index for navigation.
       setActiveChunkIndex(findChunkIndex(chunks, highlight.start));
     },
     [chunks],

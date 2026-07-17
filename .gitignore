@@ -1,10 +1,9 @@
 .venv/
 .env
-._pycache_/
+__pycache__/
 *.pyc
+*.pyo
 models/
-models/
-data/
 cache/
 frontend/node_modules/
 frontend/dist/

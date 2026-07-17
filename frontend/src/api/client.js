@@ -1,5 +1,13 @@
+/**
+ * Low-level HTTP client for the semantic-nav backend.
+ *
+ * All API routes are GET requests. Base URL comes from VITE_API_BASE in frontend/.env.
+ * Returns { url, status, data, error, elapsedMs } — check error before using data.
+ */
+
 import { recordApiDebugEntry } from "./debugLog";
 
+/** Backend origin — defaults to local uvicorn server. */
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
 function buildUrl(path, params = {}) {

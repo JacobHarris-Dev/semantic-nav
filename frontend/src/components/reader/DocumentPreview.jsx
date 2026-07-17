@@ -10,6 +10,14 @@ import {
 import { getPreviewText } from "../../api/endpoints";
 import { chunkToHighlight } from "../../utils/readerPosition";
 
+/**
+ * Renders document text with chunk highlighting and optional text-to-speech.
+ *
+ * On mount: fetches GET /preview/text and passes chunks/pageSections to the parent.
+ * Highlights use character offsets (start/end) shared with search result.location.
+ * TTS reads one chunk at a time via the browser speechSynthesis API.
+ */
+
 function getSpeechSynthesis() {
   if (typeof window === "undefined") {
     return null;

@@ -7,6 +7,12 @@ from sentence_transformers import SentenceTransformer
 
 
 class FAISSEmbedder:
+    """Embed document chunks and store vectors in a FAISS index.
+
+    FAISS holds only numeric vectors; original chunk text and character offsets
+    are kept in self.chunks for retrieval and frontend highlighting.
+    """
+
     def __init__(self, model_name="all-MiniLM-L6-v2", cache_dir="models", allow_download=True):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)

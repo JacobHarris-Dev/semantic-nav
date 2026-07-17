@@ -1,9 +1,19 @@
+/**
+ * Typed wrappers for each backend route.
+ *
+ * Typical reader integration order:
+ *   1. loadDocument()   — index the document on the server
+ *   2. getPreviewText() — fetch text, page sections, and chunks for rendering
+ *   3. search()         — semantic query; use result.location for highlighting
+ */
+
 import { apiGet, buildUrl } from "./client";
 
 export function getStatus() {
   return apiGet("/status");
 }
 
+/** Index a document for search. Call before search or preview for that document. */
 export function loadDocument({ document, document_type, chunker_type }) {
   return apiGet("/load", {
     document,
@@ -19,6 +29,7 @@ export function getPreviewMeta({ document, document_type } = {}) {
   });
 }
 
+/** Full text + chunks for the reader. Chunks include start/end character offsets. */
 export function getPreviewText({ document, document_type, chunker_type } = {}) {
   return apiGet("/preview/text", {
     document,
@@ -54,6 +65,7 @@ export function getOutline({
   });
 }
 
+/** Semantic search. Results may include location { start, end, text, primary_page }. */
 export function search({
   q,
   document,

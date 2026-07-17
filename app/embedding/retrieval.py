@@ -3,6 +3,8 @@ from typing import Optional
 
 
 class Retrieval:
+    """Query interface over a FAISSEmbedder store."""
+
     def __init__(self, faiss_embedder):
         self.store = faiss_embedder
         self.model = self.store.model
@@ -15,7 +17,9 @@ class Retrieval:
         max_results: Optional[int] = None,
     ):
         """
-        Convert query → embedding → FAISS search → results
+        Embed the query, search FAISS, and return chunks above confidence_threshold.
+
+        Score is derived from L2 distance: 1 / (1 + distance), so higher is better.
         """
 
         if confidence_threshold < 0.0 or confidence_threshold > 1.0:

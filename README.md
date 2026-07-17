@@ -191,6 +191,60 @@ curl "http://127.0.0.1:8000/preview/text?document=pdf_example.pdf"
 
 ---
 
+## Integrating with your own frontend
+
+Use this if you are building a separate client (React, mobile, etc.) against the backend API. You do not need to run the included React app.
+
+### Typical flow
+
+1. **`GET /load?document=pdf_example.pdf&chunker_type=semantic`** — parse, chunk, and index the document on the server
+2. **`GET /preview/text?document=pdf_example.pdf`** — fetch full text, PDF page boundaries, and chunks (optional; needed for rendering or highlight-by-offset)
+3. **`GET /search?q=your+query&k=3&confidence_threshold=30`** — semantic search; each result may include a `location` object with `start`, `end`, and `text` character offsets
+
+All endpoints are **GET** requests with query parameters. There is no auth layer in this MVP.
+
+### CORS
+
+If your frontend runs on a different origin than the defaults, add it to `.env` and restart the backend:
+
+```
+SN_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+```
+
+### Minimal JavaScript example
+
+```javascript
+const API = "http://127.0.0.1:8000";
+
+// 1. Index a document
+await fetch(`${API}/load?document=pdf_example.pdf&chunker_type=semantic`);
+
+// 2. Search
+const res = await fetch(
+  `${API}/search?q=what%20is%20calculus&k=3&confidence_threshold=30`
+);
+const { results } = await res.json();
+
+// 3. Use location for scroll/highlight (character offsets into the document text)
+const hit = results[0]?.location;
+// hit.start, hit.end, hit.text, hit.primary_page
+```
+
+### Reference implementation
+
+The included React app shows one working integration:
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/api/endpoints.js` | Wrapper for every API route |
+| `frontend/src/api/client.js` | Base URL and fetch helper |
+| `frontend/src/views/ReaderView.jsx` | Load → preview → search flow |
+| `frontend/src/utils/readerPosition.js` | Map `location.start` to a chunk index |
+
+Interactive API docs are also available at http://127.0.0.1:8000/docs once the server is running.
+
+---
+
 ## API reference
 
 | Endpoint | Description |

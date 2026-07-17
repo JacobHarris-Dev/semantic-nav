@@ -6,21 +6,23 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 class SemanticChunker:
-    # initalize chunking object
+    """Split a document into semantically coherent chunks.
+
+    Algorithm:
+      1. spaCy splits text into sentences (requires: python -m spacy download en_core_web_sm)
+      2. Each sentence is embedded with sentence-transformers
+      3. Adjacent sentences with low cosine similarity mark a topic boundary
+      4. Sentences between boundaries become one chunk (with start/end char offsets)
+    """
+
     def __init__(
         self,
-
-        # define model, threshold (how similaer do sentences need to be), and min chunk size
         model_name="all-MiniLM-L6-v2",
         similarity_threshold=0.65,
-        min_chunk_sentences=2
+        min_chunk_sentences=2,
     ):
-        # Load spaCy sentence tokenizer
         self.nlp = spacy.load("en_core_web_sm")
-
-        # Load embedding model
         self.model = SentenceTransformer(model_name)
-
         self.similarity_threshold = similarity_threshold
         self.min_chunk_sentences = min_chunk_sentences
 
@@ -69,15 +71,13 @@ class SemanticChunker:
         return similarities
 
     def create_chunks(self, sentences, similarities, full_text):
-        """
-        Build chunks based on semantic shifts.
-        """
+        """Start a new chunk when similarity to the next sentence drops below threshold."""
         chunks = []
         current_chunk = [sentences[0]]
 
         for i, sim in enumerate(similarities):
 
-            # If semantic shift detected
+            # Low similarity means a topic shift — finalize the current chunk.
             if sim < self.similarity_threshold:
 
                 # Avoid tiny chunks with min sentence value
@@ -107,11 +107,7 @@ class SemanticChunker:
         return chunks
 
     def chunk_document(self, text):
-        """
-        Full pipeline.
-        """
-
-        # Split text into individual sentences 
+        """Run the full sentence-split -> embed -> merge pipeline."""
         sentences = self.split_sentences(text)
 
         # edge case: document only has 1 or 0 sentences 
