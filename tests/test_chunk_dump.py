@@ -7,9 +7,9 @@ from app.debug.chunk_dump import debug_chunks_path, write_chunks_debug_file
 
 class ChunkDumpTests(unittest.TestCase):
     def test_debug_chunks_path_uses_document_stem_and_chunker(self):
-        path = debug_chunks_path("app/data/pdf_example.pdf", "semantic", Path("cache/debug"))
+        path = debug_chunks_path("app/data/gatsby.pdf", "semantic", Path("cache/debug"))
 
-        self.assertEqual(path, Path("cache/debug/pdf_example.semantic.chunks.txt"))
+        self.assertEqual(path, Path("cache/debug/gatsby.semantic.chunks.txt"))
 
     def test_write_chunks_debug_file_streams_all_chunks(self):
         chunks = [

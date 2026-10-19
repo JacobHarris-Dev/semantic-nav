@@ -81,10 +81,10 @@ class PipelineSwitchTests(unittest.TestCase):
     def test_no_switch_when_same_document_alias_and_chunker(self):
         self.assertFalse(
             pipeline_needs_switch(
-                "pdf_example.pdf",
+                "gatsby.pdf",
                 "semantic",
                 has_engine=True,
-                current_document="app/data/pdf_example.pdf",
+                current_document="app/data/gatsby.pdf",
                 current_chunker="semantic",
             )
         )
@@ -92,10 +92,10 @@ class PipelineSwitchTests(unittest.TestCase):
     def test_switch_when_chunker_changes(self):
         self.assertTrue(
             pipeline_needs_switch(
-                "pdf_example.pdf",
+                "gatsby.pdf",
                 "fixed",
                 has_engine=True,
-                current_document="pdf_example.pdf",
+                current_document="gatsby.pdf",
                 current_chunker="semantic",
             )
         )
@@ -103,10 +103,10 @@ class PipelineSwitchTests(unittest.TestCase):
     def test_switch_when_document_changes(self):
         self.assertTrue(
             pipeline_needs_switch(
-                "txt_example.txt",
+                "history.pdf",
                 "semantic",
                 has_engine=True,
-                current_document="pdf_example.pdf",
+                current_document="gatsby.pdf",
                 current_chunker="semantic",
             )
         )
@@ -114,10 +114,10 @@ class PipelineSwitchTests(unittest.TestCase):
     def test_switch_when_engine_not_loaded(self):
         self.assertTrue(
             pipeline_needs_switch(
-                "pdf_example.pdf",
+                "gatsby.pdf",
                 "semantic",
                 has_engine=False,
-                current_document="pdf_example.pdf",
+                current_document="gatsby.pdf",
                 current_chunker="semantic",
             )
         )
@@ -125,10 +125,10 @@ class PipelineSwitchTests(unittest.TestCase):
     def test_no_switch_when_only_query_params_would_change(self):
         self.assertFalse(
             pipeline_needs_switch(
-                "pdf_example.pdf",
+                "gatsby.pdf",
                 "semantic",
                 has_engine=True,
-                current_document="pdf_example.pdf",
+                current_document="gatsby.pdf",
                 current_chunker="semantic",
             )
         )
@@ -136,24 +136,24 @@ class PipelineSwitchTests(unittest.TestCase):
 
 class PreviewTests(unittest.TestCase):
     def test_preview_meta_returns_page_count(self):
-        response = client.get("/preview/meta", params={"document": "pdf_example.pdf"})
+        response = client.get("/preview/meta", params={"document": "gatsby.pdf"})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["document"], "pdf_example.pdf")
+        self.assertEqual(payload["document"], "gatsby.pdf")
         self.assertGreater(payload["page_count"], 0)
 
     def test_preview_text_returns_document_text(self):
         client.get(
             "/load",
-            params={"document": "pdf_example.pdf", "chunker_type": "semantic"},
+            params={"document": "gatsby.pdf", "chunker_type": "semantic"},
         )
         response = client.get(
             "/preview/text",
-            params={"document": "pdf_example.pdf", "chunker_type": "semantic"},
+            params={"document": "gatsby.pdf", "chunker_type": "semantic"},
         )
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["document"], "pdf_example.pdf")
+        self.assertEqual(payload["document"], "gatsby.pdf")
         self.assertGreater(payload["length"], 0)
         self.assertIsInstance(payload["text"], str)
         self.assertIsInstance(payload["page_sections"], list)
@@ -169,7 +169,7 @@ class PreviewTests(unittest.TestCase):
     def test_preview_page_returns_png(self):
         response = client.get(
             "/preview/page",
-            params={"document": "pdf_example.pdf", "page": 1},
+            params={"document": "gatsby.pdf", "page": 1},
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("content-type"), "image/png")

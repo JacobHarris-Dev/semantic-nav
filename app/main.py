@@ -76,7 +76,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DEFAULT_DOCUMENT = "pdf_example.pdf"
+DEFAULT_DOCUMENT = "gatsby.pdf"
 DEFAULT_DOCUMENT_TYPE = "pdf"
 DEFAULT_CHUNKER = "semantic"
 

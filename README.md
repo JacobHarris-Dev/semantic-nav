@@ -10,7 +10,7 @@ A semantic document search system with a FastAPI backend and a React reader UI. 
 - **Node.js 18+** (frontend only)
 - Git (to clone the repo)
 
-Sample documents are included in `app/data/` (`pdf_example.pdf`, `txt_example.txt`, `md_example.md`, etc.).
+Sample documents are included in `app/data/` (`easter_island.pdf`, `gatsby.pdf`, `history.pdf`).
 
 ## Quick start (backend + frontend)
 
@@ -60,7 +60,7 @@ Start the API server **from the repository root** (`semantic-nav/`, where `app/`
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**First startup is slow.** The server auto-loads and indexes `pdf_example.pdf` on launch. Expect 1–3+ minutes the first time while the embedding model downloads (if needed), spaCy and sentence-transformers initialize, and chunks are embedded. Later startups are much faster if the model is already cached in `models/`.
+**First startup is slow.** The server auto-loads and indexes `gatsby.pdf` on launch. Expect 1–3+ minutes the first time while the embedding model downloads (if needed), spaCy and sentence-transformers initialize, and chunks are embedded. Later startups are much faster if the model is already cached in `models/`.
 
 The API will be available at http://127.0.0.1:8000 and interactive docs at http://127.0.0.1:8000/docs.
 
@@ -113,10 +113,10 @@ The first startup may take 1–3+ minutes while the default document is indexed 
 
 ### Basic usage
 
-**Load a document** (indexes it for search; defaults to `pdf_example.pdf`):
+**Load a document** (indexes it for search; defaults to `gatsby.pdf`):
 
 ```bash
-curl "http://127.0.0.1:8000/load?document=pdf_example.pdf"
+curl "http://127.0.0.1:8000/load?document=gatsby.pdf"
 ```
 
 **Search** the loaded document:
@@ -128,7 +128,7 @@ curl "http://127.0.0.1:8000/search?q=what%20is%20calculus"
 **Switch documents** at query time:
 
 ```bash
-curl "http://127.0.0.1:8000/search?q=who%20is%20in%20the%20csv&document=csv_example.csv"
+curl "http://127.0.0.1:8000/search?q=who%20is%20the%20main%20character&document=gatsby.pdf"
 ```
 
 **Check current state:**
@@ -140,13 +140,13 @@ curl "http://127.0.0.1:8000/status"
 **Get a document outline:**
 
 ```bash
-curl "http://127.0.0.1:8000/outline?document=pdf_example.pdf"
+curl "http://127.0.0.1:8000/outline?document=gatsby.pdf"
 ```
 
 **Get extracted text and chunks** (used by the reader):
 
 ```bash
-curl "http://127.0.0.1:8000/preview/text?document=pdf_example.pdf"
+curl "http://127.0.0.1:8000/preview/text?document=gatsby.pdf"
 ```
 
 ### Supported document types
@@ -183,7 +183,7 @@ curl "http://127.0.0.1:8000/preview/text?document=pdf_example.pdf"
       }
     }
   ],
-  "document": "pdf_example.pdf",
+  "document": "gatsby.pdf",
   "document_type": "pdf",
   "chunker": "semantic"
 }
@@ -197,8 +197,8 @@ Use this if you are building a separate client (React, mobile, etc.) against the
 
 ### Typical flow
 
-1. **`GET /load?document=pdf_example.pdf&chunker_type=semantic`** — parse, chunk, and index the document on the server
-2. **`GET /preview/text?document=pdf_example.pdf`** — fetch full text, PDF page boundaries, and chunks (optional; needed for rendering or highlight-by-offset)
+1. **`GET /load?document=gatsby.pdf&chunker_type=semantic`** — parse, chunk, and index the document on the server
+2. **`GET /preview/text?document=gatsby.pdf`** — fetch full text, PDF page boundaries, and chunks (optional; needed for rendering or highlight-by-offset)
 3. **`GET /search?q=your+query&k=3&confidence_threshold=30`** — semantic search; each result may include a `location` object with `start`, `end`, and `text` character offsets
 
 All endpoints are **GET** requests with query parameters. There is no auth layer in this MVP.
@@ -217,7 +217,7 @@ SN_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 const API = "http://127.0.0.1:8000";
 
 // 1. Index a document
-await fetch(`${API}/load?document=pdf_example.pdf&chunker_type=semantic`);
+await fetch(`${API}/load?document=gatsby.pdf&chunker_type=semantic`);
 
 // 2. Search
 const res = await fetch(

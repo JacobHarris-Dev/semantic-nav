@@ -8,7 +8,7 @@ from app.debug.cluster_dump import debug_clusters_path, write_clusters_debug_fil
 class ClusterDumpTests(unittest.TestCase):
     def test_debug_clusters_path_uses_document_stem_and_outline_params(self):
         path = debug_clusters_path(
-            "app/data/pdf_example.pdf",
+            "app/data/gatsby.pdf",
             "semantic",
             6,
             2,
@@ -17,7 +17,7 @@ class ClusterDumpTests(unittest.TestCase):
 
         self.assertEqual(
             path,
-            Path("cache/debug/pdf_example.semantic.bf6.d2.clusters.txt"),
+            Path("cache/debug/gatsby.semantic.bf6.d2.clusters.txt"),
         )
 
     def test_write_clusters_debug_file_streams_outline_tree(self):
